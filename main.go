@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 )
@@ -32,4 +34,13 @@ func main() {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
+}
+
+func getDockerVersion() string {
+	out, err := exec.Command("docker", "--version").CombinedOutput()
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	return strings.TrimSpace(string(out))
 }

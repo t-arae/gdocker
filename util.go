@@ -6,83 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 )
-
-func get_wd() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-	return wd
-}
-
-func get_id() (string, string) {
-	id_user, err := exec.Command("id", "-u").Output()
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-
-	id_group, err := exec.Command("id", "-g").Output()
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-
-	return strings.TrimSpace(string(id_user)), strings.TrimSpace(string(id_group))
-}
-
-type argMember struct {
-	Value string
-	IsSet bool
-	Skip  bool
-}
-
-func (m *argMember) Set(v string) {
-	m.Value = v
-	m.IsSet = true
-}
-
-type cmdArgs struct {
-	wd  argMember
-	idu argMember
-	idg argMember
-}
-
-func (ca *cmdArgs) buildCmdArgs(cmds []string) []string {
-	if !ca.wd.IsSet {
-		ca.wd.Set(fmt.Sprintf("%s:/data", get_wd()))
-	}
-
-	idu, idg := get_id()
-	if !ca.idu.IsSet {
-		ca.idu.Set(fmt.Sprintf("LOCAL_UID=%s", idu))
-	}
-	if !ca.idg.IsSet {
-		ca.idg.Set(fmt.Sprintf("LOCAL_GID=%s", idg))
-	}
-
-	args := []string{"run", "--rm"}
-	if !ca.wd.Skip {
-		args = append(args, "-v", ca.wd.Value)
-	}
-	if !ca.idu.Skip {
-		args = append(args, "-e", ca.idu.Value)
-	}
-	if !ca.idg.Skip {
-		args = append(args, "-e", ca.idg.Value)
-	}
-
-	for _, cmd := range cmds {
-		args = append(args, cmd)
-	}
-	return args
-}
 
 func DirLs(dir string) []string {
 	files, err := os.ReadDir(dir)
