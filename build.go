@@ -10,9 +10,9 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func cmdBuildFromList() *cli.Command {
+func cmdBuild() *cli.Command {
 	return &cli.Command{
-		Name:  "fromlist",
+		Name:  "build",
 		Usage: "build docker image from list",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -23,11 +23,9 @@ func cmdBuildFromList() *cli.Command {
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:     "list",
-				Aliases:  []string{"l"},
-				Value:    "",
-				Usage:    "list",
-				Required: true,
+				Name:    "list",
+				Aliases: []string{"l"},
+				Usage:   "list",
 			},
 			&cli.StringFlag{
 				Name:     "flag",
@@ -46,15 +44,19 @@ func cmdBuildFromList() *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			dir := cmd.String("d")
-			common_tag := cmd.String("t")
-			list := cmd.String("list")
-
 			deps := findDependencyFromDockerfiles(findDockerfile(dir))
 
-			// Load image names from text files.
+			common_tag := cmd.String("t")
+
+			// Load image names from command line arguments.
 			var inputs []string
-			if list != "" {
-				f, err := os.Open(list)
+			if cmd.NArg() > 0 {
+				inputs = append(inputs, cmd.Args().Slice()...)
+			}
+
+			// Load image names from text files.
+			if cmd.IsSet("list") {
+				f, err := os.Open(cmd.String("list"))
 				if err != nil {
 					slog.Error(err.Error())
 					os.Exit(1)
@@ -69,36 +71,52 @@ func cmdBuildFromList() *cli.Command {
 				}
 			}
 
-			var image_list []DockerImage
+			var images []DockerImage
 			for _, input := range inputs {
 				image := NewDockerImage(input)
 				image.DirRoot = dir
 				image.CheckDirectory()
 				if image.ExistDir {
-					image_list = append(image_list, image)
+					images = append(images, image)
 				} else {
 					slog.Warn(fmt.Sprintf("'%s' is not present. skipped.", image.String()))
 				}
 			}
-			solved := checkDependency(image_list, deps)
+			solved, roots := checkDependency(images, deps)
 
 			var deps_sub []Dependency
-			for _, i := range solved {
-				d := DockerImage(i)
-				for _, j := range deps {
-					if d.String() == j.From.String() {
-						deps_sub = append(deps_sub, j)
+			for _, img := range solved {
+				for _, dep := range deps {
+					if img.String() == dep.From.String() {
+						if _, ok := roots[dep.To.String()]; ok {
+							dep.To.IsRoot = true
+						}
+						deps_sub = append(deps_sub, dep)
 					}
 				}
 			}
 			printFlowchart(deps_sub)
 
 			for _, image := range solved {
+				if image.IsRoot {
+					continue
+				}
 				fmt.Print(image.BuildMakeInstruction())
-				fmt.Print(image.BuildDockerTaggingInstruction(common_tag))
+				if IsIn(image.String(), Strings(images)) {
+					fmt.Print(image.BuildDockerTaggingInstruction(common_tag))
+				}
 			}
 
 			return nil
 		},
 	}
+}
+
+func IsIn[T comparable](x T, s []T) bool {
+	for _, v := range s {
+		if v == x {
+			return true
+		}
+	}
+	return false
 }

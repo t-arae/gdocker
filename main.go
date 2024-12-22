@@ -24,8 +24,7 @@ func main() {
 
 	cmd.Commands = []*cli.Command{
 		cmdShowDeps(),
-		cmdBuildFromArgs(),
-		cmdBuildFromList(),
+		cmdBuild(),
 		cmdRun(),
 		cmdRunWorkingDirectory(),
 	}
