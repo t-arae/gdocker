@@ -27,6 +27,8 @@ func main() {
 		cmdBuild(),
 		cmdRun(),
 		cmdRunWorkingDirectory(),
+		cmdImages(),
+		cmdTemplate(),
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
