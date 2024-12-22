@@ -14,6 +14,7 @@ type DockerImage struct {
 	Dir      string // "docker_image/arm/ubuntu_a" (directory)
 	ExistDir bool   // true or false
 	DirRoot  string // "docker_image"
+	IsRoot   bool
 }
 
 // DockerImageコンストラクタ
@@ -74,14 +75,22 @@ func (d DockerImage) String() string {
 	if d.Name == "" {
 		return ""
 	}
+	if d.IsRoot {
+		return d.Name + ":" + d.Tag + "[root]"
+	}
 	return d.Name + ":" + d.Tag
 }
 
-func (d DockerImage) BuildDockerTaggingInstruction(common_tag string) string {
-	if d.Name == "root" {
-		return ""
+func Strings(ds []DockerImage) []string {
+	names := make([]string, len(ds))
+	for _, d := range ds {
+		names = append(names, d.String())
 	}
-	if common_tag == "" {
+	return names
+}
+
+func (d DockerImage) BuildDockerTaggingInstruction(common_tag string) string {
+	if common_tag == "" || common_tag == "latest" {
 		return ""
 	}
 	if d.Tag == common_tag {
@@ -91,12 +100,11 @@ func (d DockerImage) BuildDockerTaggingInstruction(common_tag string) string {
 	}
 }
 
+// Docker imageをビルドするためのmake targetを指定する文字列を出力する
 func (d DockerImage) BuildMakeInstruction() string {
-	if d.Name == "root" {
-		return ""
-	}
+	parent_dir := filepath.Dir(d.Dir)
 	if d.Tag == "latest" {
 		return fmt.Sprintf("make -C %s latest\n", d.Dir)
 	}
-	return fmt.Sprintf("make -C %s cache/%s.log\n", d.Dir, d.Tag)
+	return fmt.Sprintf("make -C %s cache/%s.log\n", parent_dir, d.Tag)
 }

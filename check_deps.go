@@ -31,6 +31,6 @@ func cmdShowDeps() *cli.Command {
 func printFlowchart(deps []Dependency) {
 	fmt.Println("flowchart TD")
 	for _, dep := range deps {
-		fmt.Printf("\t%v --> %v\n", dep.From, dep.To)
+		fmt.Printf("\t%s --> %s\n", dep.From.String(), dep.To.String())
 	}
 }
