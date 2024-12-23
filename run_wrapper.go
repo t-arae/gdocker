@@ -16,6 +16,12 @@ func cmdRun() *cli.Command {
 		SkipFlagParsing: true,
 		Name:            "run",
 		Usage:           "docker run with uid and gid",
+		ArgsUsage:       "[arguments...]",
+		CustomHelpTemplate: `NAME:
+	{{template "helpNameTemplate" .}}
+USAGE:
+	{{.FullName}} {{.ArgsUsage}}
+`,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var ca cmdArgs
 			ca.wd.Skip = true
@@ -38,6 +44,12 @@ func cmdRunWorkingDirectory() *cli.Command {
 		SkipFlagParsing: true,
 		Name:            "wdrun",
 		Usage:           "docker run with uid, gid and working directory",
+		ArgsUsage:       "[arguments...]",
+		CustomHelpTemplate: `NAME:
+	{{template "helpNameTemplate" .}}
+USAGE:
+	{{.FullName}} {{.ArgsUsage}}
+`,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var ca cmdArgs
 
