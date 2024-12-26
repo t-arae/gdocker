@@ -75,9 +75,6 @@ func (d DockerImage) String() string {
 	if d.Name == "" {
 		return ""
 	}
-	if d.IsRoot {
-		return d.Name + ":" + d.Tag + "[root]"
-	}
 	return d.Name + ":" + d.Tag
 }
 

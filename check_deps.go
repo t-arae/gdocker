@@ -19,10 +19,23 @@ func cmdShowDeps() *cli.Command {
 				Usage:    "directory",
 				Required: true,
 			},
+			&cli.BoolFlag{
+				Name:    "gfm",
+				Aliases: []string{"m"},
+				Value:   false,
+				Usage:   "print for GitHub Fravored Markdown",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			dir := cmd.String("d")
-			printFlowchart(findDependencyFromDockerfiles(findDockerfile(dir)))
+			dir := cmd.String("dir")
+			if cmd.Bool("gfm") {
+				fmt.Println("```mermaid")
+			}
+			deps := findDependencyFromDockerfiles(searchImageBuildDir(dir))
+			printFlowchart(deps)
+			if cmd.Bool("gfm") {
+				fmt.Println("```")
+			}
 			return nil
 		},
 	}
@@ -31,6 +44,13 @@ func cmdShowDeps() *cli.Command {
 func printFlowchart(deps []Dependency) {
 	fmt.Println("flowchart TD")
 	for _, dep := range deps {
-		fmt.Printf("\t%s --> %s\n", dep.From.String(), dep.To.String())
+		fmt.Printf("\t%s --> %s\n", printNode(dep.From), printNode(dep.To))
 	}
+}
+
+func printNode(di DockerImage) string {
+	if di.IsRoot {
+		return fmt.Sprintf(`%s[["%s [root]"]]`, di.String(), di.String())
+	}
+	return fmt.Sprintf(`%s("%s")`, di.String(), di.String())
 }

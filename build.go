@@ -43,10 +43,18 @@ func cmdBuild() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			dir := cmd.String("d")
-			deps := findDependencyFromDockerfiles(findDockerfile(dir))
+			dir := cmd.String("dir")
 
-			common_tag := cmd.String("t")
+			ibds := searchImageBuildDir(dir)
+			ibds_map := make(map[string]int)
+			for i, ibd := range ibds {
+				for _, iname := range ibd.ImageNames() {
+					ibds_map[iname] = i
+				}
+			}
+			deps := findDependencyFromDockerfiles(ibds)
+
+			common_tag := cmd.String("tag")
 
 			// Load image names from command line arguments.
 			var inputs []string
@@ -74,6 +82,9 @@ func cmdBuild() *cli.Command {
 			var images []DockerImage
 			for _, input := range inputs {
 				image := NewDockerImage(input)
+				if _, ok := ibds_map[image.String()]; !ok {
+					continue
+				}
 				image.DirRoot = dir
 				image.CheckDirectory()
 				if image.ExistDir {
