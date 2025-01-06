@@ -22,9 +22,10 @@ type ImageBuildDir struct {
 func searchImageBuildDir(path string) []ImageBuildDir {
 	var ibds []ImageBuildDir
 
+	// ディレクトリ名が'archive'の場合は探索をスキップする
 	skipDirFunc := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			err = fmt.Errorf("skipDirFunc Error:%v", err)
+			err = fmt.Errorf("searchImageBuildDir.skipDirFunc Error:%v", err)
 			return err
 		}
 
@@ -61,11 +62,7 @@ func NewImageBuildDir(parent string, image string) (ImageBuildDir, bool) {
 	image_path := filepath.Join(parent, image)
 
 	// Check Makefile
-	if isDir(image_path) {
-		if !isFile(filepath.Join(image_path, "Makefile")) {
-			return ibd, false
-		}
-	} else {
+	if !isFile(filepath.Join(image_path, "Makefile")) {
 		return ibd, false
 	}
 
@@ -101,10 +98,11 @@ func NewImageBuildDir(parent string, image string) (ImageBuildDir, bool) {
 }
 
 func (ibd *ImageBuildDir) ImageNames() []string {
-	inames := make([]string, len(ibd.dirTags))
+	inames := make([]string, len(ibd.dirTags)+1)
 	for _, tag := range ibd.dirTags {
 		inames = append(inames, fmt.Sprintf("%s:%s", ibd.dirImage, tag))
 	}
+	inames = append(inames, fmt.Sprintf("%s:%s", ibd.dirImage, "latest"))
 	return inames
 }
 

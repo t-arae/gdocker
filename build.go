@@ -56,42 +56,18 @@ func cmdBuild() *cli.Command {
 
 			common_tag := cmd.String("tag")
 
-			// Load image names from command line arguments.
-			var inputs []string
-			if cmd.NArg() > 0 {
-				inputs = append(inputs, cmd.Args().Slice()...)
-			}
-
-			// Load image names from text files.
-			if cmd.IsSet("list") {
-				f, err := os.Open(cmd.String("list"))
-				if err != nil {
-					slog.Error(err.Error())
-					os.Exit(1)
-				}
-				s := bufio.NewScanner(f)
-				for s.Scan() {
-					inputs = append(inputs, s.Text())
-				}
-				if err = s.Err(); err != nil {
-					slog.Error(err.Error())
-					os.Exit(1)
-				}
-			}
+			inputs := checkImageNamesInput(cmd)
 
 			var images []DockerImage
 			for _, input := range inputs {
 				image := NewDockerImage(input)
 				if _, ok := ibds_map[image.String()]; !ok {
+					slog.Warn(fmt.Sprintf("%v is not found. skipped.", image))
 					continue
 				}
 				image.DirRoot = dir
 				image.CheckDirectory()
-				if image.ExistDir {
-					images = append(images, image)
-				} else {
-					slog.Warn(fmt.Sprintf("'%s' is not present. skipped.", image.String()))
-				}
+				images = append(images, image)
 			}
 			solved, roots := checkDependency(images, deps)
 
@@ -123,6 +99,45 @@ func cmdBuild() *cli.Command {
 	}
 }
 
+func checkImageNamesInput(cmd *cli.Command) []string {
+	// read image names from command line arguments.
+	var inputs []string
+	if cmd.NArg() > 0 {
+		slog.Info("read image names from command line arguments")
+		inputs = append(inputs, cmd.Args().Slice()...)
+	}
+
+	// Load image names from text files.
+	if cmd.IsSet("list") {
+		slog.Info(fmt.Sprintf("read image names from '%s'", cmd.String("list")))
+		f, err := os.Open(cmd.String("list"))
+		if err != nil {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+		if len(inputs) > 0 {
+			slog.Info("append image names")
+		}
+		s := bufio.NewScanner(f)
+		for s.Scan() {
+			inputs = append(inputs, s.Text())
+		}
+		if err = s.Err(); err != nil {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+	}
+
+	if len(inputs) == 0 {
+		slog.Error("please specify image name.")
+		os.Exit(1)
+	}
+
+	slog.Info(fmt.Sprintf("%d images are read", len(inputs)))
+	return inputs
+}
+
+// Check whether the element x is in the slice s
 func IsIn[T comparable](x T, s []T) bool {
 	for _, v := range s {
 		if v == x {
