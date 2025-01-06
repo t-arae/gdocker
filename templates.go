@@ -43,6 +43,9 @@ func cmdTemplate() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("template")
+			slog.SetDefault(logger)
+
 			dir := cmd.String("d")
 
 			name := cmd.String("name")

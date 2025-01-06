@@ -26,6 +26,9 @@ func cmdImages() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("images")
+			slog.SetDefault(logger)
+
 			dir := cmd.String("dir")
 
 			var records [][]string

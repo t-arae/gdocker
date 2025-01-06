@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/urfave/cli/v3"
 )
@@ -27,6 +28,9 @@ func cmdShowDeps() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("showdeps")
+			slog.SetDefault(logger)
+
 			dir := cmd.String("dir")
 			if cmd.Bool("gfm") {
 				fmt.Println("```mermaid")

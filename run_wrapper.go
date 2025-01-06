@@ -29,6 +29,9 @@ USAGE:
 	{{.FullName}} {{.ArgsUsage}}
 `,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("run")
+			slog.SetDefault(logger)
+
 			var ca cmdArgs
 			ca.wd.Skip = true
 
@@ -70,6 +73,9 @@ USAGE:
 	{{.FullName}} {{.ArgsUsage}}
 `,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("wdrun")
+			slog.SetDefault(logger)
+
 			var ca cmdArgs
 
 			cmdargs := ca.buildCmdArgs(cmd.Args().Slice())

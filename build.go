@@ -43,6 +43,9 @@ func cmdBuild() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("build")
+			slog.SetDefault(logger)
+
 			dir := cmd.String("dir")
 
 			ibds := searchImageBuildDir(dir)
