@@ -32,10 +32,26 @@ USAGE:
 			var ca cmdArgs
 			ca.wd.Skip = true
 
-			subcmd := exec.Command("docker", ca.buildCmdArgs(cmd.Args().Slice())...)
-			err := startPty(subcmd)
-			if err != nil {
-				panic(err)
+			cmdargs := ca.buildCmdArgs(cmd.Args().Slice())
+
+			docker_path := "docker"
+
+			if !IsIn("-it", cmdargs) {
+				subcmd := exec.Command(docker_path, cmdargs...)
+				subcmd.Stdout = os.Stdout
+				subcmd.Stderr = os.Stderr
+				err := subcmd.Run()
+				if err != nil {
+					slog.Error(err.Error())
+					os.Exit(1)
+				}
+			} else {
+				subcmd := exec.Command(docker_path, cmdargs...)
+				err := startPty(subcmd)
+				if err != nil {
+					slog.Error(err.Error())
+					os.Exit(1)
+				}
 			}
 			return nil
 		},
@@ -56,10 +72,26 @@ USAGE:
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var ca cmdArgs
 
-			subcmd := exec.Command("docker", ca.buildCmdArgs(cmd.Args().Slice())...)
-			err := startPty(subcmd)
-			if err != nil {
-				panic(err)
+			cmdargs := ca.buildCmdArgs(cmd.Args().Slice())
+
+			docker_path := "docker"
+
+			if !IsIn("-it", cmdargs) {
+				subcmd := exec.Command(docker_path, cmdargs...)
+				subcmd.Stdout = os.Stdout
+				subcmd.Stderr = os.Stderr
+				err := subcmd.Run()
+				if err != nil {
+					slog.Error(err.Error())
+					os.Exit(1)
+				}
+			} else {
+				subcmd := exec.Command(docker_path, cmdargs...)
+				err := startPty(subcmd)
+				if err != nil {
+					slog.Error(err.Error())
+					os.Exit(1)
+				}
 			}
 			return nil
 		},
@@ -161,7 +193,8 @@ func startPty(cmd *exec.Cmd) error {
 	// Set stdin in raw mode.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		panic(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	defer func() { _ = term.Restore(int(os.Stdin.Fd()), oldState) }() // Best effort.
 
