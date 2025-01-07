@@ -14,12 +14,30 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+var (
+	// flag for images command
+	FLAG_BUILT_ONLY = &cli.BoolFlag{
+		Name:    "built-only",
+		Aliases: []string{"b"},
+		Value:   false,
+		Usage:   "show only images already built",
+	}
+	FLAG_EXIST_ONLY = &cli.BoolFlag{
+		Name:    "exist-only",
+		Aliases: []string{"e"},
+		Value:   false,
+		Usage:   "show only images with building directory",
+	}
+)
+
 func cmdImages() *cli.Command {
 	return &cli.Command{
 		Name:  "images",
-		Usage: "test",
+		Usage: "show built images with some info",
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
+			FLAG_BUILT_ONLY,
+			FLAG_EXIST_ONLY,
 			FLAG_VERBOSE,
 			FLAG_DOCKER_BIN,
 		},
@@ -31,23 +49,61 @@ func cmdImages() *cli.Command {
 			ibds := searchImageBuildDir(dir)
 			ibds.makeMap()
 
+			imgs := getExistImages(cmd.String("docker-bin"))
+			imgs_map := make(map[string]struct{})
+			for _, img := range imgs {
+				imgs_map[img.String()] = struct{}{}
+			}
+			for _, iname := range ibds.ImageNames() {
+				if _, ok := imgs_map[iname]; !ok {
+					imgs = append(imgs, NewDockerImage(iname))
+				}
+			}
+
 			var records [][]string
-			for _, i := range getExistImages(cmd.String("docker-bin")) {
-				idx, exists := ibds.m[i.String()]
+			for _, img := range imgs {
+				idx, exists := ibds.m[img.String()]
+				_, built := imgs_map[img.String()]
 				var dir string
 				if exists {
-					dir = filepath.Join(ibds.ibds[idx].dirParent, i.Name, i.Tag)
+					if img.Tag == "latest" {
+						dir = filepath.Join(ibds.ibds[idx].dirParent, img.Name)
+					} else {
+						dir = filepath.Join(ibds.ibds[idx].dirParent, img.Name, img.Tag)
+					}
 				} else {
 					dir = ""
 				}
 				records = append(records, []string{
-					i.String(),
+					img.String(),
+					fmt.Sprintf("%t", built),
 					fmt.Sprintf("%t", exists),
 					filepath.Join(dir),
 				})
 			}
+
+			if cmd.Bool("built-only") {
+				var filtered [][]string
+				for _, record := range records {
+					if record[1] == "true" {
+						filtered = append(filtered, record)
+					}
+				}
+				records = filtered
+			}
+
+			if cmd.Bool("exist-only") {
+				var filtered [][]string
+				for _, record := range records {
+					if record[2] == "true" {
+						filtered = append(filtered, record)
+					}
+				}
+				records = filtered
+			}
+
 			writeCSV(
-				[]string{"ImageName", "Exist", "BuildDir"},
+				[]string{"ImageName", "Built", "Exist", "BuildDir"},
 				records,
 				os.Stdout,
 			)
