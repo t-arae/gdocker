@@ -9,6 +9,9 @@ import (
 	"os/exec"
 	"os/signal"
 	"os/user"
+	"slices"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
@@ -29,17 +32,22 @@ USAGE:
 	{{.FullName}} {{.ArgsUsage}}
 `,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("run", slog.LevelInfo)
-			slog.SetDefault(logger)
-
 			var ca cmdArgs
 			ca.wd.Skip = true
 
-			cmdargs := ca.buildCmdArgs(cmd.Args().Slice())
-
-			docker_path := "docker"
+			args, isHelp, docker_path, lev := parseRunArgs(cmd.Args().Slice())
+			if isHelp {
+				return nil
+			}
+			cmdargs := ca.buildCmdArgs(args)
+			logger := getLogger("run", lev)
+			slog.SetDefault(logger)
+			if docker_path != "docker" {
+				slog.Info(fmt.Sprintf("docker binary is set to '%s'", docker_path))
+			}
 
 			if !IsIn("-it", cmdargs) {
+				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
 				subcmd := exec.Command(docker_path, cmdargs...)
 				subcmd.Stdout = os.Stdout
 				subcmd.Stderr = os.Stderr
@@ -73,16 +81,21 @@ USAGE:
 	{{.FullName}} {{.ArgsUsage}}
 `,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("wdrun", slog.LevelInfo)
-			slog.SetDefault(logger)
-
 			var ca cmdArgs
 
-			cmdargs := ca.buildCmdArgs(cmd.Args().Slice())
-
-			docker_path := "docker"
+			args, isHelp, docker_path, lev := parseRunArgs(cmd.Args().Slice())
+			if isHelp {
+				return nil
+			}
+			cmdargs := ca.buildCmdArgs(args)
+			logger := getLogger("wdrun", lev)
+			slog.SetDefault(logger)
+			if docker_path != "docker" {
+				slog.Info(fmt.Sprintf("docker binary is set to '%s'", docker_path))
+			}
 
 			if !IsIn("-it", cmdargs) {
+				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
 				subcmd := exec.Command(docker_path, cmdargs...)
 				subcmd.Stdout = os.Stdout
 				subcmd.Stderr = os.Stderr
@@ -102,6 +115,35 @@ USAGE:
 			return nil
 		},
 	}
+}
+
+func parseRunArgs(args []string) ([]string, bool, string, slog.Level) {
+	docker_path := "docker"
+	lev := slog.LevelInfo
+
+	if len(args) == 1 && IsIn(args[0], []string{"--help", "-h"}) {
+		return []string{}, true, docker_path, lev
+	}
+
+	if i := slices.Index(args, "---"); i != -1 {
+		gdargs := slices.Clone(args[0:i])
+		args = slices.Delete(args, 0, i+1)
+
+		if i_bin := slices.Index(gdargs, "--docker-bin"); i_bin != -1 {
+			if i_bin+1 < len(gdargs) {
+				docker_path = gdargs[i_bin+1]
+			}
+		}
+
+		if i_V := slices.IndexFunc(gdargs, func(e string) bool { return e == "--verbose" || e == "-V" }); i_V != -1 {
+			if i_V+1 < len(gdargs) {
+				u, _ := strconv.ParseUint(gdargs[i_V+1], 10, 64)
+				lev = getLogLevel(u)
+			}
+		}
+	}
+
+	return args, false, docker_path, lev
 }
 
 // Working directoryのパスを返す
