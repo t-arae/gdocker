@@ -1,0 +1,121 @@
+---
+format: gfm
+engine: knitr
+embed-resources: true
+---
+
+# gdocker
+## Install
+
+```{bash}
+#| eval: false
+git clone --depth 1 t-arae/gdocker
+cd gdocker/
+go install 
+```
+
+## main commmand 
+
+```{bash}
+gdocker --help
+```
+
+## Sub command
+### `gdocker showdeps`
+```{bash}
+gdocker help showdeps
+```
+
+```{bash}
+#| output: asis
+gdocker showdeps -m -d tests/images/
+```
+
+### `gdocker build`
+```{bash}
+gdocker help build
+```
+
+```{bash}
+gdocker build -d tests/ ubuntu1_a 2>/dev/null
+```
+
+### `gdocker run`, `gdocker wdrun`
+```{bash}
+#| eval: false
+gdocker help run
+gdocker help wdrun
+```
+
+```{bash}
+#| echo: false
+gdocker help run
+```
+
+```{bash}
+#| echo: false
+gdocker help wdrun
+```
+
+
+```{bash}
+gdocker run ubuntu1_a bash -c 'echo "Hello `uname`"'
+```
+
+```{bash}
+gdocker wdrun --verbose 0 --- ubuntu1_a ls | head -4
+```
+
+### `gdocker images`
+```{bash}
+gdocker help images
+```
+
+```{bash}
+gdocker images -e -d tests/images | csvtk pretty -t
+```
+
+### `gdocker clean`
+```{bash}
+gdocker help clean
+```
+
+### `gdocker template`
+```{bash}
+gdocker help template
+```
+
+## TODOs
+
+- global
+    - [x] set log level
+    - [x] include docker version
+- `showdeps`
+    - [x] show dependency graph as mermeid format
+    - [ ] run with selected images
+- `build`
+    - [x] detect dependency
+    - [x] solve dependencies
+    - [x] visualize dependencies
+    - [x] export build instructions
+    - [ ] enable build flags
+- `run` `wdrun`
+    - [x] preset uid/gid/working directory
+    - [ ] help message
+- `images`
+    - [x] show/check image directory
+    - [ ] show images from directory
+- `template`
+    - [x] prepare template
+    - [ ] choose output (stdout or file)
+    - [ ] check directory
+    - [ ] make directory tree
+- `config`
+    - [ ] prepare a config file for `gdocker`
+    - [ ] set image directory
+
+## Requirements
+
+- Go
+- make
+
