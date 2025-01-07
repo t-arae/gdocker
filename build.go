@@ -15,61 +15,31 @@ func cmdBuild() *cli.Command {
 		Name:  "build",
 		Usage: "build docker image from list",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "dir",
-				Aliases:  []string{"d"},
-				Value:    "",
-				Usage:    "directory",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:    "list",
-				Aliases: []string{"l"},
-				Usage:   "list",
-			},
-			&cli.StringFlag{
-				Name:     "flag",
-				Aliases:  []string{"f"},
-				Value:    "",
-				Usage:    "docker build flag",
-				Required: false,
-			},
-			&cli.StringFlag{
-				Name:     "tag",
-				Aliases:  []string{"t"},
-				Value:    "latest",
-				Usage:    "common tag name",
-				Required: false,
-			},
+			FLAG_DIRECTORY,
+			FLAG_LIST,
+			FLAG_BUILDFLAG,
+			FLAG_TAG,
+			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("build")
+			logger := getLogger("build", getLogLevel(cmd.Uint("verbose")))
 			slog.SetDefault(logger)
 
 			dir := cmd.String("dir")
+			common_tag := cmd.String("tag")
+			inputs := checkImageNamesInput(cmd) // load input image names from -l and args
 
 			ibds := searchImageBuildDir(dir)
-			ibds_map := make(map[string]int)
-			for i, ibd := range ibds {
-				for _, iname := range ibd.ImageNames() {
-					ibds_map[iname] = i
-				}
-			}
-			deps := findDependencyFromDockerfiles(ibds)
-
-			common_tag := cmd.String("tag")
-
-			inputs := checkImageNamesInput(cmd)
+			ibds.makeMap()
+			deps := ibds.findDependencyFromDockerfiles()
 
 			var images []DockerImage
 			for _, input := range inputs {
 				image := NewDockerImage(input)
-				if _, ok := ibds_map[image.String()]; !ok {
+				if _, ok := ibds.m[image.String()]; !ok {
 					slog.Warn(fmt.Sprintf("%v is not found. skipped.", image))
 					continue
 				}
-				image.DirRoot = dir
-				image.CheckDirectory()
 				images = append(images, image)
 			}
 			solved, roots := checkDependency(images, deps)
@@ -91,9 +61,10 @@ func cmdBuild() *cli.Command {
 				if image.IsRoot {
 					continue
 				}
-				fmt.Print(image.BuildMakeInstruction())
+				ibd := ibds.ibds[ibds.m[image.String()]]
+				fmt.Print(ibd.BuildMakeInstruction(image.Tag))
 				if IsIn(image.String(), Strings(images)) {
-					fmt.Print(image.BuildDockerTaggingInstruction(common_tag))
+					fmt.Print(ibd.BuildDockerTaggingInstruction(image.Tag, common_tag))
 				}
 			}
 
@@ -138,14 +109,4 @@ func checkImageNamesInput(cmd *cli.Command) []string {
 
 	slog.Info(fmt.Sprintf("%d images are read", len(inputs)))
 	return inputs
-}
-
-// Check whether the element x is in the slice s
-func IsIn[T comparable](x T, s []T) bool {
-	for _, v := range s {
-		if v == x {
-			return true
-		}
-	}
-	return false
 }

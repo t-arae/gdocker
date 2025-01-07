@@ -49,3 +49,13 @@ func findLines(path string, prefix string) []string {
 
 	return results
 }
+
+// Check whether the element x is in the slice s
+func IsIn[T comparable](x T, s []T) bool {
+	for _, v := range s {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}

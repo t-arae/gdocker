@@ -29,7 +29,7 @@ USAGE:
 	{{.FullName}} {{.ArgsUsage}}
 `,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("run")
+			logger := getLogger("run", slog.LevelInfo)
 			slog.SetDefault(logger)
 
 			var ca cmdArgs
@@ -73,7 +73,7 @@ USAGE:
 	{{.FullName}} {{.ArgsUsage}}
 `,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("wdrun")
+			logger := getLogger("wdrun", slog.LevelInfo)
 			slog.SetDefault(logger)
 
 			var ca cmdArgs

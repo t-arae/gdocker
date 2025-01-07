@@ -19,24 +19,31 @@ func cmdImages() *cli.Command {
 		Name:  "images",
 		Usage: "test",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "dir",
-				Aliases: []string{"d"},
-				Usage:   "directory",
-			},
+			FLAG_DIRECTORY,
+			FLAG_VERBOSE,
+			FLAG_DOCKER_BIN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("images")
+			logger := getLogger("images", getLogLevel(cmd.Uint("verbose")))
 			slog.SetDefault(logger)
 
 			dir := cmd.String("dir")
+			ibds := searchImageBuildDir(dir)
+			ibds.makeMap()
 
 			var records [][]string
-			for _, i := range getExistImages(dir, "docker") {
+			for _, i := range getExistImages(cmd.String("docker-bin")) {
+				idx, exists := ibds.m[i.String()]
+				var dir string
+				if exists {
+					dir = filepath.Join(ibds.ibds[idx].dirParent, i.Name, i.Tag)
+				} else {
+					dir = ""
+				}
 				records = append(records, []string{
 					i.String(),
-					fmt.Sprintf("%t", i.ExistDir),
-					filepath.Join(i.DirRoot, i.Dir),
+					fmt.Sprintf("%t", exists),
+					filepath.Join(dir),
 				})
 			}
 			writeCSV(
@@ -51,7 +58,7 @@ func cmdImages() *cli.Command {
 }
 
 // Get built docker images information
-func getExistImages(dr string, docker_path string) []DockerImage {
+func getExistImages(docker_path string) []DockerImage {
 	out, err := exec.Command(docker_path, "images", "--format", "{{.Repository}}:{{.Tag}}").Output()
 	if err != nil {
 		slog.Error(err.Error())
@@ -63,10 +70,7 @@ func getExistImages(dr string, docker_path string) []DockerImage {
 		if v == "" {
 			continue
 		}
-		img := NewDockerImage(v)
-		img.DirRoot = dr
-		img.CheckDirectory()
-		images = append(images, img)
+		images = append(images, NewDockerImage(v))
 	}
 
 	return images

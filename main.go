@@ -13,16 +13,26 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-const APP_NAME = "gdocker"
+var (
+	APP_NAME    = "gdocker"
+	APP_VERSION = "0.0.1"
+)
 
 func main() {
 	cmd := &cli.Command{}
 	cmd.Name = APP_NAME
 	cmd.Usage = "docker utility"
-	cmd.Version = fmt.Sprintf("0.0.1 (%s)\n", getDockerVersion("docker"))
-
-	logger := getLogger("main")
-	slog.SetDefault(logger)
+	cmd.Flags = []cli.Flag{
+		FLAG_VERBOSE,
+		FLAG_DOCKER_BIN,
+	}
+	cmd.Version = fmt.Sprintf("%s %s\n", APP_VERSION, getDockerVersion("docker"))
+	cmd.Before = func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+		logger := getLogger("main", getLogLevel(cmd.Uint("verbose")))
+		slog.SetDefault(logger)
+		cmd.Version = fmt.Sprintf("%s %s\n", APP_VERSION, getDockerVersion(cmd.String("docker-bin")))
+		return ctx, nil
+	}
 
 	cmd.Commands = []*cli.Command{
 		cmdShowDeps(),
@@ -43,10 +53,10 @@ func main() {
 func getDockerVersion(docker_path string) string {
 	out, err := exec.Command(docker_path, "--version").CombinedOutput()
 	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
+		slog.Info(err.Error())
+		return "(could not get docker version)"
 	}
-	return strings.TrimSpace(string(out))
+	return fmt.Sprintf("(%s)", strings.TrimSpace(string(out)))
 }
 
 // logger setup
@@ -75,7 +85,22 @@ func (h *SimpleHandler) Handle(_ context.Context, record slog.Record) error {
 	return nil
 }
 
-func getLogger(name string) *slog.Logger {
-	sh := NewSimpleHandler(os.Stdout, slog.LevelInfo, name)
+func getLogger(name string, level slog.Level) *slog.Logger {
+	sh := NewSimpleHandler(os.Stdout, level, name)
 	return slog.New(sh)
+}
+
+func getLogLevel(u uint64) slog.Level {
+	var lev slog.Level
+	switch u {
+	case 0:
+		lev = slog.LevelInfo
+	case 1:
+		lev = slog.LevelWarn
+	case 2:
+		lev = slog.LevelError
+	default:
+		lev = slog.LevelInfo
+	}
+	return lev
 }

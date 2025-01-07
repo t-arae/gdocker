@@ -13,29 +13,19 @@ func cmdShowDeps() *cli.Command {
 		Name:  "showdeps",
 		Usage: "show docker image dependencies as mermaid flowchart",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "dir",
-				Aliases:  []string{"d"},
-				Value:    "",
-				Usage:    "directory",
-				Required: true,
-			},
-			&cli.BoolFlag{
-				Name:    "gfm",
-				Aliases: []string{"m"},
-				Value:   false,
-				Usage:   "print for GitHub Fravored Markdown",
-			},
+			FLAG_DIRECTORY,
+			FLAG_GFM,
+			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("showdeps")
+			logger := getLogger("showdeps", getLogLevel(cmd.Uint("verbose")))
 			slog.SetDefault(logger)
 
 			dir := cmd.String("dir")
 			if cmd.Bool("gfm") {
 				fmt.Println("```mermaid")
 			}
-			deps := findDependencyFromDockerfiles(searchImageBuildDir(dir))
+			deps := searchImageBuildDir(dir).findDependencyFromDockerfiles()
 			printFlowchart(deps)
 			if cmd.Bool("gfm") {
 				fmt.Println("```")

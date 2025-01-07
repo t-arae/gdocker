@@ -16,37 +16,17 @@ func cmdTemplate() *cli.Command {
 		Name:  "template",
 		Usage: "prepare template for building image",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "dir",
-				Aliases:  []string{"d"},
-				Value:    "",
-				Usage:    "directory",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:     "name",
-				Aliases:  []string{"n"},
-				Usage:    "image name",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:     "tags",
-				Aliases:  []string{"t"},
-				Usage:    "image tags",
-				Required: true,
-			},
-			&cli.StringSliceFlag{
-				Name:     "resource",
-				Aliases:  []string{"r"},
-				Usage:    "resource",
-				Required: false,
-			},
+			FLAG_DIRECTORY,
+			FLAG_NAME,
+			FLAG_TAGS,
+			FLAG_RESOURCES,
+			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("template")
+			logger := getLogger("template", getLogLevel(cmd.Uint("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("d")
+			dir := cmd.String("dir")
 
 			name := cmd.String("name")
 

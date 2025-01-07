@@ -11,16 +11,54 @@ import (
 	"strings"
 )
 
+type DockerImage struct {
+	Name   string // "ubuntu_a" (image name)
+	Tag    string // "latest" (tag name)
+	IsRoot bool
+}
+
+// DockerImageコンストラクタ
+func NewDockerImage(image_name string) DockerImage {
+	var d DockerImage
+
+	// image_nameにtagが含まれない場合はlatest tagを設定する
+	separated := strings.Split(image_name, ":")
+	if len(separated) == 1 {
+		separated = append(separated, "latest")
+	}
+	d.Name = separated[0]
+	d.Tag = separated[1]
+
+	return d
+}
+
+// Dockerimageの名前（例: ubuntu_a:latest）を返す
+func (d DockerImage) String() string {
+	if d.Name == "" {
+		return ""
+	}
+	return d.Name + ":" + d.Tag
+}
+
+func Strings(ds []DockerImage) []string {
+	names := make([]string, len(ds))
+	for _, d := range ds {
+		names = append(names, d.String())
+	}
+	return names
+}
+
 type ImageBuildDir struct {
 	dirParent string
 	dirImage  string
 	dirTags   []string
 	tagLatest int
+	imgs      []DockerImage
 }
 
 // 指定したディレクトリからImageBuildDirを探索して返す
-func searchImageBuildDir(path string) []ImageBuildDir {
-	var ibds []ImageBuildDir
+func searchImageBuildDir(path string) ImageBuildDirs {
+	var ibds ImageBuildDirs
 
 	// ディレクトリ名が'archive'の場合は探索をスキップする
 	skipDirFunc := func(path string, d fs.DirEntry, err error) error {
@@ -39,7 +77,7 @@ func searchImageBuildDir(path string) []ImageBuildDir {
 
 		ibd, ok := NewImageBuildDir(filepath.Dir(path), filepath.Base(path))
 		if ok {
-			ibds = append(ibds, ibd)
+			ibds.ibds = append(ibds.ibds, ibd)
 			return filepath.SkipDir
 		}
 		return nil
@@ -98,21 +136,11 @@ func NewImageBuildDir(parent string, image string) (ImageBuildDir, bool) {
 }
 
 func (ibd *ImageBuildDir) ImageNames() []string {
-	inames := make([]string, len(ibd.dirTags)+1)
+	inames := make([]string, 0, len(ibd.dirTags)+1)
 	for _, tag := range ibd.dirTags {
 		inames = append(inames, fmt.Sprintf("%s:%s", ibd.dirImage, tag))
 	}
 	inames = append(inames, fmt.Sprintf("%s:%s", ibd.dirImage, "latest"))
-	return inames
-}
-
-type ImageBuildDirs []ImageBuildDir
-
-func (ibds ImageBuildDirs) ImageNames() []string {
-	var inames []string
-	for _, ibd := range ibds {
-		inames = append(inames, ibd.ImageNames()...)
-	}
 	return inames
 }
 
@@ -150,10 +178,48 @@ func (ibd *ImageBuildDir) findLatestImageFromMakefile() error {
 	return fmt.Errorf("no latest tag found")
 }
 
-// Dockerfileのパスのスライスを受け取って、Dependencyのスライスを返す
-func findDependencyFromDockerfiles(ibds []ImageBuildDir) []Dependency {
+// Docker imageをビルドするためのmake targetを指定する文字列を出力する
+func (ibd *ImageBuildDir) BuildMakeInstruction(tag string) string {
+	img_dir := filepath.Join(ibd.dirParent, ibd.dirImage)
+	if tag == "latest" {
+		return fmt.Sprintf("make -C %s latest\n", img_dir)
+	}
+	return fmt.Sprintf("make -C %s cache/%s.log\n", img_dir, tag)
+}
+
+func (ibd *ImageBuildDir) BuildDockerTaggingInstruction(tag string, new_tag string) string {
+	if new_tag == "" || new_tag == "latest" || tag == new_tag {
+		return ""
+	}
+	return fmt.Sprintf("docker tag %s:%s %s:%s\n", ibd.dirImage, tag, ibd.dirImage, new_tag)
+}
+
+type ImageBuildDirs struct {
+	ibds []ImageBuildDir
+	m    map[string]int
+}
+
+func (ibds *ImageBuildDirs) makeMap() {
+	ibds.m = make(map[string]int)
+	for i, ibd := range ibds.ibds {
+		for _, iname := range ibd.ImageNames() {
+			ibds.m[iname] = i
+		}
+	}
+}
+
+func (ibds ImageBuildDirs) ImageNames() []string {
+	var inames []string
+	for _, ibd := range ibds.ibds {
+		inames = append(inames, ibd.ImageNames()...)
+	}
+	return inames
+}
+
+// ImageBuildDirのスライスについて、Dependencyのスライスを返す
+func (ibds ImageBuildDirs) findDependencyFromDockerfiles() []Dependency {
 	var deps []Dependency
-	for _, ibd := range ibds {
+	for _, ibd := range ibds.ibds {
 		// Dockerfileから読み取った依存関係を追加
 		deps = append(deps, ibd.findDependenciesFromDockerfile()...)
 
