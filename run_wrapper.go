@@ -20,23 +20,42 @@ import (
 	"golang.org/x/term"
 )
 
+var (
+	ARGS_USAGE_RUN  = "[options ---] arguments..."
+	DESCRIPTION_RUN = `A "docker run" wrapper with set some environment variables and flags.
+  - set automatic container removal ("--rm")
+  - mount current working directory to /data (-v {PWD}:/data) (only "wdrun")
+  - current User/Group ID (through "LOCAL_UID" and "LOCAL_GID")
+  - disable showing startup message (through "ECHO_IDS")
+
+When you use "--verbose" or "--docker-bin" option, you have to write " --- " before
+arguments. If you pass the "-it" to arguments, you can use interactive mode.
+
+Examples)
+#> gdocker run ubuntu_a uname -a
+#> gdocker run --verbose 0 --- ubuntu_a uname -a
+#> gdocker run -it ubuntu_a bash`
+)
+
 func cmdRun() *cli.Command {
 	return &cli.Command{
 		SkipFlagParsing: true,
 		Name:            "run",
 		Usage:           "docker run with uid and gid",
-		ArgsUsage:       "[arguments...]",
-		CustomHelpTemplate: `NAME:
-	{{template "helpNameTemplate" .}}
-USAGE:
-	{{.FullName}} {{.ArgsUsage}}
-`,
+		Flags: []cli.Flag{
+			FLAG_VERBOSE,
+			FLAG_DOCKER_BIN,
+		},
+		ArgsUsage:   ARGS_USAGE_RUN,
+		Description: DESCRIPTION_RUN,
+
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var ca cmdArgs
 			ca.wd.Skip = true
 
 			args, isHelp, docker_path, lev := parseRunArgs(cmd.Args().Slice())
 			if isHelp {
+				cli.HelpPrinter(os.Stdout, cli.SubcommandHelpTemplate, cmd)
 				return nil
 			}
 			cmdargs := ca.buildCmdArgs(args)
@@ -74,17 +93,19 @@ func cmdRunWorkingDirectory() *cli.Command {
 		SkipFlagParsing: true,
 		Name:            "wdrun",
 		Usage:           "docker run with uid, gid and working directory",
-		ArgsUsage:       "[arguments...]",
-		CustomHelpTemplate: `NAME:
-	{{template "helpNameTemplate" .}}
-USAGE:
-	{{.FullName}} {{.ArgsUsage}}
-`,
+		Flags: []cli.Flag{
+			FLAG_VERBOSE,
+			FLAG_DOCKER_BIN,
+		},
+		ArgsUsage:   ARGS_USAGE_RUN,
+		Description: DESCRIPTION_RUN,
+
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var ca cmdArgs
 
 			args, isHelp, docker_path, lev := parseRunArgs(cmd.Args().Slice())
 			if isHelp {
+				cli.HelpPrinter(os.Stdout, cli.SubcommandHelpTemplate, cmd)
 				return nil
 			}
 			cmdargs := ca.buildCmdArgs(args)
@@ -119,7 +140,7 @@ USAGE:
 
 func parseRunArgs(args []string) ([]string, bool, string, slog.Level) {
 	docker_path := "docker"
-	lev := slog.LevelInfo
+	lev := slog.LevelWarn
 
 	if len(args) == 1 && IsIn(args[0], []string{"--help", "-h"}) {
 		return []string{}, true, docker_path, lev
@@ -209,6 +230,8 @@ func (ca *cmdArgs) buildCmdArgs(cmds []string) []string {
 	if !ca.gid.Skip {
 		args = append(args, "-e", ca.gid.Value)
 	}
+
+	args = append(args, []string{"-e", "ECHO_IDS=0"}...)
 
 	for _, cmd := range cmds {
 		args = append(args, cmd)
