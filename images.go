@@ -30,10 +30,29 @@ var (
 	}
 )
 
+var (
+	ARGS_USAGE_IMAGES  = "[options]"
+	DESCRIPTION_IMAGES = `Shows docker images have been built with some additional infomation.
+	This command lists Docker images that have already been built, showing their
+	build status and associated directories. It supports filtering to display only
+	built images or those with a build directory. The output is provided in TSV format.
+
+	Examples)
+	#> gdocker images --dir docker_images/arm
+
+	(bellow examples needs "csvtk" to run.)
+	#> gdocker images --dir docker_images/arm | csvtk pretty -t
+	#> gdocker images --dir docker_images/arm -e -b | csvtk pretty -t`
+)
+
 func cmdImages() *cli.Command {
 	return &cli.Command{
-		Name:  "images",
-		Usage: "show built images with some info",
+		Name:               "images",
+		Usage:              "show built images with some info",
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          ARGS_USAGE_IMAGES,
+		Description:        DESCRIPTION_IMAGES,
+		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
 			FLAG_BUILT_ONLY,
@@ -42,11 +61,11 @@ func cmdImages() *cli.Command {
 			FLAG_DOCKER_BIN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("images", getLogLevel(cmd.Uint("verbose")))
+			logger := getLogger("images", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
 			dir := cmd.String("dir")
-			ibds := searchImageBuildDir(dir)
+			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()
 
 			imgs := getExistImages(cmd.String("docker-bin"))
@@ -56,13 +75,18 @@ func cmdImages() *cli.Command {
 			}
 			for _, iname := range ibds.ImageNames() {
 				if _, ok := imgs_map[iname]; !ok {
-					imgs = append(imgs, NewDockerImage(iname))
+					img, err := NewDockerImage(iname)
+					if err != nil {
+						slog.Error(err.Error())
+						os.Exit(1)
+					}
+					imgs = append(imgs, img)
 				}
 			}
 
 			var records [][]string
 			for _, img := range imgs {
-				idx, exists := ibds.m[img.String()]
+				idx, exists := ibds.mapNameTag[img.String()]
 				_, built := imgs_map[img.String()]
 				var dir string
 				if exists {
@@ -123,10 +147,12 @@ func getExistImages(docker_path string) []DockerImage {
 
 	var images []DockerImage
 	for _, v := range strings.Split(string(out), "\n") {
-		if v == "" {
+		if v == "" || v == "<none>:<none>" {
 			continue
 		}
-		images = append(images, NewDockerImage(v))
+		// this parse error is ignored intentionally.
+		img, _ := NewDockerImage(v)
+		images = append(images, img)
 	}
 
 	return images

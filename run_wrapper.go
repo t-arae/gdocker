@@ -34,7 +34,7 @@ arguments. If you pass the "-it" to arguments, you can use interactive mode.
 Examples)
 #> gdocker run ubuntu_a uname -a
 #> gdocker run --verbose 0 --- ubuntu_a uname -a
-#> gdocker run -it ubuntu_a bash`
+#> gdocker wdrun -it ubuntu_a bash`
 )
 
 func cmdRun() *cli.Command {
@@ -65,16 +65,9 @@ func cmdRun() *cli.Command {
 				slog.Info(fmt.Sprintf("docker binary is set to '%s'", docker_path))
 			}
 
-			if !IsIn("-it", cmdargs) {
+			if slices.Index(cmdargs, "-it") == -1 {
 				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
-				subcmd := exec.Command(docker_path, cmdargs...)
-				subcmd.Stdout = os.Stdout
-				subcmd.Stderr = os.Stderr
-				err := subcmd.Run()
-				if err != nil {
-					slog.Error(err.Error())
-					os.Exit(1)
-				}
+				execCommand(docker_path, cmdargs)
 			} else {
 				subcmd := exec.Command(docker_path, cmdargs...)
 				err := startPty(subcmd)
@@ -115,16 +108,9 @@ func cmdRunWorkingDirectory() *cli.Command {
 				slog.Info(fmt.Sprintf("docker binary is set to '%s'", docker_path))
 			}
 
-			if !IsIn("-it", cmdargs) {
+			if slices.Index(cmdargs, "-it") == -1 {
 				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
-				subcmd := exec.Command(docker_path, cmdargs...)
-				subcmd.Stdout = os.Stdout
-				subcmd.Stderr = os.Stderr
-				err := subcmd.Run()
-				if err != nil {
-					slog.Error(err.Error())
-					os.Exit(1)
-				}
+				execCommand(docker_path, cmdargs)
 			} else {
 				subcmd := exec.Command(docker_path, cmdargs...)
 				err := startPty(subcmd)
@@ -142,7 +128,7 @@ func parseRunArgs(args []string) ([]string, bool, string, slog.Level) {
 	docker_path := "docker"
 	lev := slog.LevelWarn
 
-	if len(args) == 1 && IsIn(args[0], []string{"--help", "-h"}) {
+	if len(args) == 1 && slices.Index([]string{"--help", "-h"}, args[0]) != -1 {
 		return []string{}, true, docker_path, lev
 	}
 
@@ -158,8 +144,8 @@ func parseRunArgs(args []string) ([]string, bool, string, slog.Level) {
 
 		if i_V := slices.IndexFunc(gdargs, func(e string) bool { return e == "--verbose" || e == "-V" }); i_V != -1 {
 			if i_V+1 < len(gdargs) {
-				u, _ := strconv.ParseUint(gdargs[i_V+1], 10, 64)
-				lev = getLogLevel(u)
+				i, _ := strconv.ParseInt(gdargs[i_V+1], 10, 64)
+				lev = getLogLevel(i)
 			}
 		}
 	}

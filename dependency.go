@@ -11,7 +11,7 @@ type Dependency struct {
 	To   DockerImage
 }
 
-func checkDependency(images []DockerImage, deps []Dependency) ([]DockerImage, map[string]struct{}) {
+func checkDependency(imgs []DockerImage, deps []Dependency) ([]DockerImage, map[string]struct{}) {
 	// Initialize the graph.
 	graph := NewGraph[string]()
 
@@ -21,24 +21,24 @@ func checkDependency(images []DockerImage, deps []Dependency) ([]DockerImage, ma
 	}
 
 	roots := map[string]struct{}{}
-	sorted := make([]string, 0, len(images))
-	appeared := make(map[string]struct{}, len(images))
-	for i, image := range images {
+	sorted := make([]string, 0, len(imgs))
+	appeared := make(map[string]struct{}, len(imgs))
+	for i, img := range imgs {
 		exist := false
 		if i != 0 {
 			for _, called := range sorted {
-				if image.String() == called {
+				if img.String() == called {
 					exist = true
 					break
 				}
 			}
 		}
-		if image.Name == "" {
+		if img.Name == "" {
 			continue
 		}
 
 		if !exist {
-			imgnames_to_add, err := graph.TopSort(image.String())
+			imgnames_to_add, err := graph.TopSort(img.String())
 			if err != nil {
 				slog.Error(err.Error())
 				os.Exit(1)
@@ -58,7 +58,7 @@ func checkDependency(images []DockerImage, deps []Dependency) ([]DockerImage, ma
 
 	img_sorted := make([]DockerImage, 0, len(sorted))
 	for _, imgname := range sorted {
-		d := NewDockerImage(imgname)
+		d, _ := NewDockerImage(imgname)
 		if _, ok := roots[d.String()]; ok {
 			d.IsRoot = true
 		}

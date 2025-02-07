@@ -1,46 +1,58 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 )
 
 func cmdBuild() *cli.Command {
 	return &cli.Command{
-		Name:  "build",
-		Usage: "build docker image from list",
+		Name:   "build",
+		Usage:  "build docker image from list",
+		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
 			FLAG_LIST,
 			FLAG_BUILDFLAG,
 			FLAG_TAG,
+			FLAG_ALL,
+			FLAG_ALL_LATEST,
+			FLAG_DRYRUN,
 			FLAG_VERBOSE,
+			FLAG_DOCKER_BIN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("build", getLogLevel(cmd.Uint("verbose")))
+			logger := getLogger("build", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
 			dir := cmd.String("dir")
 			common_tag := cmd.String("tag")
-			inputs := checkImageNamesInput(cmd) // load input image names from -l and args
+			bflag := cmd.String("flag")
 
-			ibds := searchImageBuildDir(dir)
+			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()
-			deps := ibds.findDependencyFromDockerfiles()
+			deps := ibds.Dependencies()
+
+			inputs := checkImageNamesInput(cmd, ibds) // load input image names from -l and args
 
 			var images []DockerImage
 			for _, input := range inputs {
-				image := NewDockerImage(input)
-				if _, ok := ibds.m[image.String()]; !ok {
-					slog.Warn(fmt.Sprintf("%v is not found. skipped.", image))
+				img, err := NewDockerImage(input)
+				if err != nil {
+					slog.Error(err.Error())
+					os.Exit(1)
+				}
+				if _, ok := ibds.mapNameTag[img.String()]; !ok {
+					slog.Warn(fmt.Sprintf("%v is not found. skipped.", img))
 					continue
 				}
-				images = append(images, image)
+				images = append(images, img)
 			}
 			solved, roots := checkDependency(images, deps)
 
@@ -55,58 +67,44 @@ func cmdBuild() *cli.Command {
 					}
 				}
 			}
-			printFlowchart(deps_sub)
+
+			type tmplData struct {
+				GFM  bool
+				Deps []Dependency
+			}
+			writeTemplate(TMPL_MERMAID, tmplData{
+				cmd.Bool("gfm"),
+				deps_sub,
+			}, "stdout", false)
 
 			for _, image := range solved {
 				if image.IsRoot {
 					continue
 				}
-				ibd := ibds.ibds[ibds.m[image.String()]]
-				fmt.Print(ibd.BuildMakeInstruction(image.Tag))
-				if IsIn(image.String(), Strings(images)) {
-					fmt.Print(ibd.BuildDockerTaggingInstruction(image.Tag, common_tag))
+				ibd := ibds.ibds[ibds.mapNameTag[image.String()]]
+
+				args := ibd.BuildMakeInstruction(image.Tag)
+				if cmd.String("docker-bin") != "docker" {
+					args = append(args, fmt.Sprintf("DOCKER_BIN=%s", cmd.String("docker-bin")))
+				}
+				if bflag != "" {
+					args = append(args, fmt.Sprintf("DOCKER_BUILD_FLAG=%s", bflag))
+				}
+				fmt.Println("make", strings.Join(args, " "))
+				if !cmd.Bool("dry-run") {
+					execCommand("make", args)
+				}
+				if slices.Index(Strings(images), image.String()) != -1 {
+					args, ok := ibd.BuildTaggingInstruction(image.Tag, common_tag)
+					if ok {
+						fmt.Print(cmd.String("docker-bin"), strings.Join(args, " "))
+					}
+					if !cmd.Bool("dry-run") && ok {
+						execCommand(cmd.String("docker-bin"), args)
+					}
 				}
 			}
-
 			return nil
 		},
 	}
-}
-
-func checkImageNamesInput(cmd *cli.Command) []string {
-	// read image names from command line arguments.
-	var inputs []string
-	if cmd.NArg() > 0 {
-		slog.Info("read image names from command line arguments")
-		inputs = append(inputs, cmd.Args().Slice()...)
-	}
-
-	// Load image names from text files.
-	if cmd.IsSet("list") {
-		slog.Info(fmt.Sprintf("read image names from '%s'", cmd.String("list")))
-		f, err := os.Open(cmd.String("list"))
-		if err != nil {
-			slog.Error(err.Error())
-			os.Exit(1)
-		}
-		if len(inputs) > 0 {
-			slog.Info("append image names")
-		}
-		s := bufio.NewScanner(f)
-		for s.Scan() {
-			inputs = append(inputs, s.Text())
-		}
-		if err = s.Err(); err != nil {
-			slog.Error(err.Error())
-			os.Exit(1)
-		}
-	}
-
-	if len(inputs) == 0 {
-		slog.Error("please specify image name.")
-		os.Exit(1)
-	}
-
-	slog.Info(fmt.Sprintf("%d images are read", len(inputs)))
-	return inputs
 }

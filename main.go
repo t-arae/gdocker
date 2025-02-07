@@ -15,34 +15,40 @@ import (
 
 var (
 	APP_NAME    = "gdocker"
+	APP_USAGE   = "personal docker wrapper tool written in Go"
 	APP_VERSION = "0.0.1"
 )
 
-func main() {
+func cmdMain() *cli.Command {
 	cmd := &cli.Command{}
 	cmd.Name = APP_NAME
-	cmd.Usage = "docker utility"
+	cmd.Usage = APP_USAGE
 	cmd.Flags = []cli.Flag{
 		FLAG_VERBOSE,
 		FLAG_DOCKER_BIN,
 	}
-	cmd.Version = fmt.Sprintf("%s %s\n", APP_VERSION, getDockerVersion("docker"))
+	cmd.Version = fmt.Sprintf("%s %s", APP_VERSION, getDockerVersion("docker"))
 	cmd.Before = func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-		logger := getLogger("main", getLogLevel(cmd.Uint("verbose")))
+		logger := getLogger("main", getLogLevel(cmd.Int("verbose")))
 		slog.SetDefault(logger)
-		cmd.Version = fmt.Sprintf("%s %s\n", APP_VERSION, getDockerVersion(cmd.String("docker-bin")))
+		cmd.Version = fmt.Sprintf("%s %s", APP_VERSION, getDockerVersion(cmd.String("docker-bin")))
 		return ctx, nil
 	}
 
 	cmd.Commands = []*cli.Command{
 		cmdShowDeps(),
 		cmdBuild(),
+		cmdClean(),
+		cmdImages(),
 		cmdRun(),
 		cmdRunWorkingDirectory(),
-		cmdImages(),
-		cmdTemplate(),
+		cmdDev(),
 	}
+	return cmd
+}
 
+func main() {
+	cmd := cmdMain()
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
@@ -90,9 +96,11 @@ func getLogger(name string, level slog.Level) *slog.Logger {
 	return slog.New(sh)
 }
 
-func getLogLevel(u uint64) slog.Level {
+func getLogLevel(i int64) slog.Level {
 	var lev slog.Level
-	switch u {
+	switch i {
+	case -1:
+		lev = slog.LevelDebug
 	case 0:
 		lev = slog.LevelInfo
 	case 1:
