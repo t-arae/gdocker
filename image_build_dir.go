@@ -191,8 +191,8 @@ func (ibd *ImageBuildDir) Directory() string {
 }
 
 // Returns a slice of string to remove docker images in the directory
-func (ibd *ImageBuildDir) BuildCleanInstruction() []string {
-	return []string{"-C", ibd.Directory(), "clean"}
+func (ibd *ImageBuildDir) BuildCleanInstruction(tag string) []string {
+	return []string{"-C", ibd.Directory(), fmt.Sprintf("clean-%s", tag)}
 }
 
 // Returns a slice of string to build the docker image specified by the tag

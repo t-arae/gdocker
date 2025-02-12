@@ -43,7 +43,7 @@ OUTPUT_IMAGE = touch $@
 DIR_MAKEFILE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 DIR_OUT := cache
 
-.PHONY: latest clean
+.PHONY: latest clean clean-%
 
 define image_out
   $(addprefix $(DIR_OUT)/,$(addsuffix .log,$1))
@@ -59,6 +59,10 @@ clean:
 	rm -rf $(DIR_OUT)/
 	set -o pipefail; $(DOCKER_BIN) images --format "$(IMG_NAME):{{.Tag}}" $(IMG_NAME) | \
 		xargs -I {} $(DOCKER_BIN) rmi {}
+
+clean-%:
+	rm $(DIR_OUT)/$(*).log
+	$(DOCKER_BIN) rmi $(IMG_NAME):$(*)
 
 $(DIR_OUT):
 	mkdir -p $@
@@ -150,11 +154,10 @@ var (
 		Aliases: []string{"l"},
 		Usage:   "read image names from `FILE`",
 	}
-	FLAG_BUILDFLAG = &cli.StringFlag{
+	FLAG_MAKEFLAG = &cli.StringSliceFlag{
 		Name:     "flag",
 		Aliases:  []string{"f"},
-		Value:    "",
-		Usage:    "a string (`STR`) for set to build flags",
+		Usage:    "a string (`STR`) for setting Make variables",
 		Required: false,
 	}
 	FLAG_TAG = &cli.StringFlag{

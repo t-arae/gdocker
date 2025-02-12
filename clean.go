@@ -12,13 +12,13 @@ import (
 
 var (
 	ARGS_USAGE_CLEAN  = "[options] [image names...]"
-	DESCRIPTION_CLEAN = `Helps to run commnad to remove Docker images.
+	DESCRIPTION_CLEAN = `Helps to run command to remove Docker images.
 	This command removes Docker images from the list based on the specified image
 	names. The command can be run in a dry-run mode to preview actions before run.
-	Note: the action removes all images which matches image names regardless of its tag.
 
 	Examples)
 	#> gdocker clean --dir docker_images/arm ubuntu_a
+	#> gdocker clean --dir docker_images/arm ubuntu_a:*
 	#> gdocker clean --dir docker_images/arm --list image_list.txt
 	#> gdocker clean --dir docker_images/arm --all -n`
 )
@@ -34,6 +34,7 @@ func cmdClean() *cli.Command {
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
 			FLAG_LIST,
+			FLAG_MAKEFLAG,
 			FLAG_ALL,
 			FLAG_DRYRUN,
 			FLAG_DOCKER_BIN,
@@ -44,31 +45,39 @@ func cmdClean() *cli.Command {
 			slog.SetDefault(logger)
 
 			dir := cmd.String("dir")
+			var flags []string
+			if cmd.String("docker-bin") != "docker" {
+				flags = append(flags, fmt.Sprintf("DOCKER_BIN=%s", cmd.String("docker-bin")))
+			}
+			for _, flag := range cmd.StringSlice("flag") {
+				flags = append(flags, flag)
+			}
 
 			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()
 
 			inputs := checkImageNamesInput(cmd, ibds) // load input image names from -l and args
 
-			finished := make(map[int]struct{})
+			finished := make(map[string]struct{})
 			for _, input := range inputs {
 				image, err := NewDockerImage(input)
 				if err != nil {
 					slog.Error(err.Error())
 					os.Exit(1)
 				}
+
 				if idx, ok := ibds.mapNameTag[image.String()]; ok {
-					if _, isfinish := finished[idx]; !isfinish {
-						args := ibds.ibds[idx].BuildCleanInstruction()
-						if cmd.String("docker-bin") != "docker" {
-							args = append(args, fmt.Sprintf("DOCKER_BIN=%s", cmd.String("docker-bin")))
-						}
-						fmt.Println("make", strings.Join(args, " "))
-						if !cmd.Bool("dry-run") {
-							execCommand("make", args)
-						}
-						finished[idx] = struct{}{}
+					if _, isfinish := finished[image.String()]; isfinish {
+						continue
 					}
+
+					args := ibds.ibds[idx].BuildCleanInstruction(image.Tag)
+					args = append(args, flags...)
+					fmt.Println("make", strings.Join(args, " "))
+					if !cmd.Bool("dry-run") {
+						execCommand("make", args)
+					}
+					finished[image.String()] = struct{}{}
 				}
 			}
 
