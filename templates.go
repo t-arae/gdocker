@@ -345,6 +345,7 @@ func cmdMakeRootDir() *cli.Command {
 			FLAG_ARCH,
 			FLAG_DRYRUN,
 			FLAG_VERBOSE,
+			FLAG_TIMEZONE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("dev mkroot", getLogLevel(cmd.Int("verbose")))
@@ -402,16 +403,25 @@ func cmdMakeRootDir() *cli.Command {
 			writeTemplate(TMPL_UBUNTU_ENTRYPOINT, nil, outf2, false)
 
 			// Dockerfile
-			if !cmd.Bool("dry-run") {
+			type tmplData struct {
+				RootDir  string
+				Name     string
+				Tag      string
+				Platform string
+				TimeZone string
+			}
+
+			timezone := cmd.String("timezone")
 				outf1 = filepath.Join(dir1, "Dockerfile")
 				outf2 = filepath.Join(dir2, "Dockerfile")
-			}
 			if cmd.Bool("dry-run") {
 				fmt.Printf("\n### %s\n", outf1)
-			}
-			writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "22.04", Platform: platform}, outf1, false)
-			if cmd.Bool("dry-run") {
+				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "22.04", Platform: platform, TimeZone: timezone}, "stdout", false)
 				fmt.Printf("\n### %s\n", outf2)
+				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "20.04", Platform: platform, TimeZone: timezone}, "stdout", false)
+			} else {
+				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "22.04", Platform: platform, TimeZone: timezone}, outf1, false)
+				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "20.04", Platform: platform, TimeZone: timezone}, outf2, false)
 			}
 			writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "20.04", Platform: platform}, outf2, false)
 

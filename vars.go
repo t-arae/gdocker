@@ -70,7 +70,7 @@ $(DIR_OUT):
 
 	TMPL_UBUNTU_DOCKERFILE = `FROM --platform={{< .Platform >}} ubuntu:{{< .Tag >}}
 
-ENV TZ=Asia/Tokyo
+ENV TZ={{< .TimeZone >}}
 
 RUN apt-get update && apt-get -y install gosu zstd tzdata ca-certificates openssl vim
 COPY docker_prompt.sh /etc/profile.d/docker_prompt.sh
@@ -183,6 +183,11 @@ var (
 	FLAG_TAGS = &cli.StringFlag{
 		Name:  "tags",
 		Usage: "image tags",
+	}
+	FLAG_TIMEZONE = &cli.StringFlag{
+		Name:  "timezone",
+		Usage: "set timezone for the docker image",
+		Value: "Asia/Tokyo",
 	}
 	FLAG_RESOURCES = &cli.StringSliceFlag{
 		Name:     "resource",
