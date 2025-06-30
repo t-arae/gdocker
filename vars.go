@@ -61,8 +61,8 @@ clean:
 		xargs -I {} $(DOCKER_BIN) rmi {}
 
 clean-%:
-	rm $(DIR_OUT)/$(*).log
 	$(DOCKER_BIN) rmi $(IMG_NAME):$(*)
+	rm -f $(DIR_OUT)/$(*).log
 
 $(DIR_OUT):
 	mkdir -p $@

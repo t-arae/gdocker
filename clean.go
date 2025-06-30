@@ -56,6 +56,11 @@ func cmdClean() *cli.Command {
 
 			inputs := checkImageNamesInput(cmd, ibds) // load input image names from -l and args
 
+			existsImages := make(map[string]struct{})
+			for _, eimg := range getExistImages(cmd.String("docker-bin")) {
+				existsImages[eimg.String()] = struct{}{}
+			}
+
 			finished := make(map[string]struct{})
 			for _, input := range inputs {
 				image, err := NewDockerImage(input)
@@ -66,6 +71,11 @@ func cmdClean() *cli.Command {
 
 				if idx, ok := ibds.mapNameTag[image.String()]; ok {
 					if _, isfinish := finished[image.String()]; isfinish {
+						continue
+					}
+
+					if _, isbuilt := existsImages[image.String()]; !isbuilt {
+						slog.Warn(fmt.Sprintf("%v is not built. skipped.", image))
 						continue
 					}
 
