@@ -120,7 +120,7 @@ Examples)
 
 			skip_func := func(path string, d fs.DirEntry, err error) error {
 				if !d.IsDir() {
-					if v, ok := strings.CutPrefix(filepath.Base(path), "Dockerfile_"); ok && strings.Index(v, ";") != -1 {
+					if v, ok := strings.CutPrefix(filepath.Base(path), "Dockerfile_"); ok && strings.Contains(v, ";") {
 						temp := strings.SplitN(v, ";", 2)
 						arch := filepath.Base(filepath.Dir(path))
 						if slices.Index([]string{"arm", "x86_64"}, arch) == -1 {
@@ -180,7 +180,7 @@ func NewTmplDataMakefile(root string, name string, tags []string) tmplDataMakefi
 }
 
 func (t *tmplDataMakefile) addResource(tag string, rname string, rcommand []string) {
-	idx, _ := t.Map[tag]
+	idx := t.Map[tag]
 	t.Resources = append(t.Resources, Resource{idx, rname})
 	t.Commands = append(t.Commands, rcommand)
 }
@@ -191,7 +191,7 @@ func (t *tmplDataMakefile) writeResourceTemplate(tag string, file string, append
 		Resource string
 		Commands []string
 	}
-	i, _ := t.Map[tag]
+	i := t.Map[tag]
 	tmplData.Tag = tag
 	for j, r := range t.Resources {
 		if r.tagNum == i {
@@ -207,7 +207,7 @@ func (t *tmplDataMakefile) writeImageTemplate(tag string, file string, Append bo
 		Tag       string
 		Resources []string
 	}
-	i, _ := t.Map[tag]
+	i := t.Map[tag]
 	if i == 0 {
 		tmplData.Tag = "$(LATEST_VERSION)"
 	} else {
@@ -245,14 +245,10 @@ func cmdMakeImageDir() *cli.Command {
 
 			var tag_list []string
 			if cmd.IsSet("tags") {
-				for _, t := range strings.Split(cmd.String("tags"), " ") {
-					tag_list = append(tag_list, t)
-				}
+				tag_list = append(tag_list, strings.Split(cmd.String("tags"), " ")...)
 			}
 			if cmd.NArg() > 0 {
-				for _, t := range cmd.Args().Slice() {
-					tag_list = append(tag_list, t)
-				}
+				tag_list = append(tag_list, cmd.Args().Slice()...)
 			}
 			tm := NewTmplDataMakefile(dir, name, tag_list)
 

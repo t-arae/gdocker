@@ -197,7 +197,7 @@ var (
 		Required: true,
 		Action: func(ctx context.Context, cmd *cli.Command, v string) error {
 			if slices.Index([]string{"arm", "x86_64"}, v) == -1 {
-				return fmt.Errorf("flag arch must be 'arm' or 'x86_64', not '%v'.", v)
+				return fmt.Errorf("flag arch must be 'arm' or 'x86_64', not '%v'", v)
 			}
 			return nil
 		},

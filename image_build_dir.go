@@ -22,22 +22,22 @@ type DockerImage struct {
 }
 
 var (
-	ErrParseImageName     = errors.New("image name parse error.")
-	ErrCheckBuildImageDir = errors.New("build image dir check error.")
+	ErrParseImageName     = errors.New("image name parse error")
+	ErrCheckBuildImageDir = errors.New("build image dir check error")
 )
 
 // DockerImage constructer
 // Parse an image name (e.g. ubuntu_a:22.04, ubuntu_a) and return a DockerImage.
 // If the tag was not specified, the tag will be set as "latest".
 // This function checks belows.
-// - the image name does not contain any semicolon.
-// - the image name only has one or no colon.
+// - no semicolon in the image name.
+// - one or no colon in the image name.
 // - the image name and tag are not blanks.
 func NewDockerImage(image_name string) (DockerImage, error) {
 	var d DockerImage
 
 	// Check semicolon
-	if strings.Index(image_name, ";") != -1 {
+	if strings.Contains(image_name, ";") {
 		return d, fmt.Errorf("%w cannot have semicolon. '%s'", ErrParseImageName, image_name)
 	}
 
@@ -127,7 +127,7 @@ func NewImageBuildDir(parent string, image string) (ImageBuildDir, error) {
 
 	// if no tags found, then return false
 	if len(ibd.dirTags) == 0 {
-		return ibd, fmt.Errorf("%w could not find tags from '%s'.", ErrCheckBuildImageDir, dir)
+		return ibd, fmt.Errorf("%w could not find tags from '%s'", ErrCheckBuildImageDir, dir)
 	}
 
 	// Makefileを読み込んで、latest tagが依存しているtagを探す

@@ -49,9 +49,7 @@ func cmdClean() *cli.Command {
 			if cmd.String("docker-bin") != "docker" {
 				flags = append(flags, fmt.Sprintf("DOCKER_BIN=%s", cmd.String("docker-bin")))
 			}
-			for _, flag := range cmd.StringSlice("flag") {
-				flags = append(flags, flag)
-			}
+			flags = append(flags, cmd.StringSlice("flag")...)
 
 			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()

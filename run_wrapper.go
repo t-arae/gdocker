@@ -219,9 +219,7 @@ func (ca *cmdArgs) buildCmdArgs(cmds []string) []string {
 
 	args = append(args, []string{"-e", "ECHO_IDS=0"}...)
 
-	for _, cmd := range cmds {
-		args = append(args, cmd)
-	}
+	args = append(args, cmds...)
 	return args
 }
 
