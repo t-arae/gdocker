@@ -11,15 +11,30 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+var (
+	ARGS_USAGE_BUILD  = "[options] [image names...]"
+	DESCRIPTION_BUILD = `Helps to run command to build Docker images.
+	This command build Docker images from the list based on the specified image
+	names. The command can be run in a dry-run mode to preview actions before run.
+
+	Examples)
+	#> gdocker build --dir docker_images ubuntu_a
+	#> gdocker build --dir docker_images --list image_list.txt
+	#> gdocker build --dir docker_images -f "DOCKER_BUILD_FLAG=--platform linux/amd64" samtools_x`
+)
+
 func cmdBuild() *cli.Command {
 	return &cli.Command{
-		Name:   "build",
-		Usage:  "build docker image from list",
-		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
+		Name:               "build",
+		Usage:              "build docker image from list",
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          ARGS_USAGE_BUILD,
+		Description:        DESCRIPTION_BUILD,
+		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
 			FLAG_LIST,
-			FLAG_BUILDFLAG,
+			FLAG_MAKEFLAG,
 			FLAG_TAG,
 			FLAG_ALL,
 			FLAG_ALL_LATEST,
@@ -33,7 +48,6 @@ func cmdBuild() *cli.Command {
 
 			dir := cmd.String("dir")
 			common_tag := cmd.String("tag")
-			bflag := cmd.String("flag")
 
 			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()
@@ -88,9 +102,7 @@ func cmdBuild() *cli.Command {
 				if cmd.String("docker-bin") != "docker" {
 					args = append(args, fmt.Sprintf("DOCKER_BIN=%s", cmd.String("docker-bin")))
 				}
-				if bflag != "" {
-					args = append(args, fmt.Sprintf("DOCKER_BUILD_FLAG=%s", bflag))
-				}
+				args = append(args, cmd.StringSlice("flag")...)
 				fmt.Println("make", strings.Join(args, " "))
 				if !cmd.Bool("dry-run") {
 					execCommand("make", args)
