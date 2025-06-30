@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -153,74 +154,6 @@ Examples)
 	}
 }
 
-type Resource struct {
-	tagNum       int
-	ResourceName string
-}
-type tmplDataMakefile struct {
-	RootDir   string
-	Name      string
-	Tags      []string
-	Map       map[string]int
-	Resources []Resource
-	Commands  [][]string
-}
-
-func NewTmplDataMakefile(root string, name string, tags []string) tmplDataMakefile {
-	t := tmplDataMakefile{
-		RootDir: root,
-		Name:    name,
-		Tags:    tags,
-	}
-	t.Map = make(map[string]int)
-	for idx, tag := range t.Tags {
-		t.Map[tag] = idx
-	}
-	return t
-}
-
-func (t *tmplDataMakefile) addResource(tag string, rname string, rcommand []string) {
-	idx := t.Map[tag]
-	t.Resources = append(t.Resources, Resource{idx, rname})
-	t.Commands = append(t.Commands, rcommand)
-}
-
-func (t *tmplDataMakefile) writeResourceTemplate(tag string, file string, append bool) {
-	var tmplData struct {
-		Tag      string
-		Resource string
-		Commands []string
-	}
-	i := t.Map[tag]
-	tmplData.Tag = tag
-	for j, r := range t.Resources {
-		if r.tagNum == i {
-			tmplData.Resource = r.ResourceName
-			tmplData.Commands = t.Commands[j]
-			writeTemplate(TEMPLATE_RESOURCE, tmplData, file, append)
-		}
-	}
-}
-
-func (t *tmplDataMakefile) writeImageTemplate(tag string, file string, Append bool) {
-	var tmplData struct {
-		Tag       string
-		Resources []string
-	}
-	i := t.Map[tag]
-	if i == 0 {
-		tmplData.Tag = "$(LATEST_VERSION)"
-	} else {
-		tmplData.Tag = tag
-	}
-	for _, r := range t.Resources {
-		if r.tagNum == i {
-			tmplData.Resources = append(tmplData.Resources, strings.Join([]string{tag, "/$(DIR_OUT)/", r.ResourceName}, ""))
-		}
-	}
-	writeTemplate(TEMPLATE_OLDVER, tmplData, file, Append)
-}
-
 func cmdMakeImageDir() *cli.Command {
 	return &cli.Command{
 		Name:   "mkdir",
@@ -250,7 +183,11 @@ func cmdMakeImageDir() *cli.Command {
 			if cmd.NArg() > 0 {
 				tag_list = append(tag_list, cmd.Args().Slice()...)
 			}
-			tm := NewTmplDataMakefile(dir, name, tag_list)
+			tm := NewTemplates(TMPL_MAKEFILE, dataMakeHeader{Name: name, Tags: tag_list})
+			var oldvers = make([]dataMakeOldVer, len(tag_list))
+			for i := range oldvers {
+				oldvers[i].Tag = tag_list[i]
+			}
 
 			// format `-r {Tag}:{File}:{Cmd}` or `-r stdin`
 			// ex) `-r 22.04:software.tar.gz:"curl -O https://example.com/software.tar.gz"`
@@ -264,10 +201,10 @@ func cmdMakeImageDir() *cli.Command {
 			// ex) 22.04
 			// ex) EOF
 			// ex) `
-			if slices.Index(cmd.StringSlice("resource"), "stdin") != -1 {
+			if slices.Contains(cmd.StringSlice("resource"), "stdin") {
 				sc := bufio.NewScanner(os.Stdin)
 				for sc.Scan() {
-					if _, exist := tm.Map[sc.Text()]; exist {
+					if slices.Contains(tag_list, sc.Text()) {
 						temp_tag := sc.Text()
 						if !sc.Scan() {
 							slog.Error(fmt.Sprintf("insufficient resource '%s'", temp_tag))
@@ -281,7 +218,9 @@ func cmdMakeImageDir() *cli.Command {
 							}
 							commands = append(commands, sc.Text())
 						}
-						tm.addResource(temp_tag, resource, commands)
+						tm.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{temp_tag, resource, commands})
+						i := slices.Index(tag_list, temp_tag)
+						oldvers[i].Resources = append(oldvers[i].Resources, resource)
 					} else {
 						slog.Error("invalid stdin")
 						os.Exit(1)
@@ -298,31 +237,26 @@ func cmdMakeImageDir() *cli.Command {
 						slog.Error(fmt.Sprintf("%s does not contain ':'", r))
 						os.Exit(1)
 					}
-
-					if _, ok := tm.Map[sp[0]]; !ok {
+					if !slices.Contains(tag_list, sp[0]) {
 						slog.Error(fmt.Sprintf("could not found tag '%s'", sp[0]))
 						os.Exit(1)
 					}
-					tm.addResource(sp[0], sp[1], []string{sp[2]})
+					tm.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{sp[0], sp[1], []string{sp[2]}})
+					i := slices.Index(tag_list, sp[0])
+					oldvers[i].Resources = append(oldvers[i].Resources, filepath.Join(sp[0], "$(DIR_OUT)", sp[1]))
 				}
+			}
+
+			for _, oldver := range oldvers {
+				tm.AddTemplate(TEMPLATE_OLDVER, oldver)
 			}
 
 			var outf string
-			if cmd.Bool("dry-run") {
-				outf = "stdout"
-			} else {
+			if !cmd.Bool("dry-run") {
 				mkDirAll(filepath.Join(dir, arch, name))
-				outf = filepath.Join(dir, arch, name, "Makefile")
 			}
-			writeTemplate(TMPL_MAKEFILE, tm, outf, false)
-			for _, tag := range tm.Tags {
-				if !cmd.Bool("dry-run") {
-					mkDirAll(filepath.Join(dir, arch, name, tag))
-				}
-				tm.writeResourceTemplate(tag, outf, outf != "stdout")
-				tm.writeImageTemplate(tag, outf, outf != "stdout")
-			}
-
+			outf = filepath.Join(dir, arch, name, "Makefile")
+			tm.writeTemplates(outf, cmd.Bool("dry-run"))
 			return nil
 		},
 	}
@@ -337,8 +271,8 @@ func mkDirAll(dir string) {
 
 func cmdMakeRootDir() *cli.Command {
 	return &cli.Command{
-		Name:   "mkroot",
-		Usage:  "prepare template for building image",
+		Name:   "init",
+		Usage:  "setup root directory and base images",
 		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
@@ -348,7 +282,7 @@ func cmdMakeRootDir() *cli.Command {
 			FLAG_TIMEZONE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev mkroot", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("dev init", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
 			dir := cmd.String("dir")
@@ -366,41 +300,39 @@ func cmdMakeRootDir() *cli.Command {
 				os.Exit(1)
 			}
 
-			type tmplData struct {
-				RootDir  string
-				Name     string
-				Tag      string
-				Platform string
-			}
-
 			outf, outf1, outf2 := "stdout", "stdout", "stdout"
 
 			dir1 := filepath.Join(dir, arch, name, "22.04")
 			dir2 := filepath.Join(dir, arch, name, "20.04")
+			slog.Info(fmt.Sprintf("creating root directory for %s images", platform))
+			slog.Info(fmt.Sprintf(`making directories:
+
+%s (root directory)
+└── %s (architecture root directory)
+    └── %s (base image)
+        ├── 22.04
+        └── 20.04
+`, dir, arch, name))
 			if !cmd.Bool("dry-run") {
 				mkDirAll(dir1)
 				mkDirAll(dir2)
 			}
 
 			// docker_prompt.sh
-			if cmd.Bool("dry-run") {
-				fmt.Printf("\n### %s and %s\n", filepath.Join(dir1, "docker_prompt.sh"), filepath.Join(dir2, "docker_prompt.sh"))
-			} else {
-				outf1 = filepath.Join(dir1, "docker_prompt.sh")
-				outf2 = filepath.Join(dir2, "docker_prompt.sh")
-				writeTemplate(TMPL_UBUNTU_PROMPT, nil, outf1, false)
-			}
-			writeTemplate(TMPL_UBUNTU_PROMPT, nil, outf2, false)
+			outf1 = filepath.Join(dir1, "docker_prompt.sh")
+			outf2 = filepath.Join(dir2, "docker_prompt.sh")
+			slog.Info("creating shell prompt setups:")
+
+			box := cmd.Bool("dry-run")
+			NewTemplates(TMPL_UBUNTU_PROMPT, nil).writeTemplates(outf1, box)
+			NewTemplates(TMPL_UBUNTU_PROMPT, nil).writeTemplates(outf2, box)
 
 			// entrypoint.sh
-			if cmd.Bool("dry-run") {
-				fmt.Printf("\n### %s and %s\n", filepath.Join(dir1, "entrypoint.sh"), filepath.Join(dir2, "entrypoint.sh"))
-			} else {
-				outf1 = filepath.Join(dir1, "entrypoint.sh")
-				outf2 = filepath.Join(dir2, "entrypoint.sh")
-				writeTemplate(TMPL_UBUNTU_ENTRYPOINT, nil, outf1, false)
-			}
-			writeTemplate(TMPL_UBUNTU_ENTRYPOINT, nil, outf2, false)
+			outf1 = filepath.Join(dir1, "entrypoint.sh")
+			outf2 = filepath.Join(dir2, "entrypoint.sh")
+			slog.Info("creating entrypoint scripts:")
+			NewTemplates(TMPL_UBUNTU_ENTRYPOINT, nil).writeTemplates(outf1, box)
+			NewTemplates(TMPL_UBUNTU_ENTRYPOINT, nil).writeTemplates(outf2, box)
 
 			// Dockerfile
 			type tmplData struct {
@@ -412,65 +344,156 @@ func cmdMakeRootDir() *cli.Command {
 			}
 
 			timezone := cmd.String("timezone")
-				outf1 = filepath.Join(dir1, "Dockerfile")
-				outf2 = filepath.Join(dir2, "Dockerfile")
-			if cmd.Bool("dry-run") {
-				fmt.Printf("\n### %s\n", outf1)
-				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "22.04", Platform: platform, TimeZone: timezone}, "stdout", false)
-				fmt.Printf("\n### %s\n", outf2)
-				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "20.04", Platform: platform, TimeZone: timezone}, "stdout", false)
-			} else {
-				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "22.04", Platform: platform, TimeZone: timezone}, outf1, false)
-				writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "20.04", Platform: platform, TimeZone: timezone}, outf2, false)
-			}
-			writeTemplate(TMPL_UBUNTU_DOCKERFILE, tmplData{Tag: "20.04", Platform: platform}, outf2, false)
+			outf1 = filepath.Join(dir1, "Dockerfile")
+			outf2 = filepath.Join(dir2, "Dockerfile")
+			slog.Info("creating Dockerfiles:")
+			NewTemplates(
+				TMPL_UBUNTU_DOCKERFILE,
+				tmplData{Tag: "22.04", Platform: platform, TimeZone: timezone},
+			).writeTemplates(outf1, box)
+			NewTemplates(
+				TMPL_UBUNTU_DOCKERFILE,
+				tmplData{Tag: "20.04", Platform: platform, TimeZone: timezone},
+			).writeTemplates(outf2, box)
 
 			// Makefile
-			if cmd.Bool("dry-run") {
-				fmt.Printf("\n### %s\n", filepath.Join(dir, arch, name, "Makefile"))
-			} else {
-				outf = filepath.Join(dir, arch, name, "Makefile")
-			}
+			outf = filepath.Join(dir, arch, name, "Makefile")
+			slog.Info("creating Makefile:")
 
-			tm := NewTmplDataMakefile(dir, name, []string{"22.04", "20.04"})
-			writeTemplate(TMPL_MAKEFILE, tm, outf, false)
-			tm.writeResourceTemplate("22.04", outf, outf != "stdout")
-			tm.writeResourceTemplate("20.04", outf, outf != "stdout")
-			tm.writeImageTemplate("22.04", outf, outf != "stdout")
-			tm.writeImageTemplate("20.04", outf, outf != "stdout")
+			tms := NewTemplates(TMPL_MAKEFILE, dataMakeHeader{Name: name, Tags: []string{"22.04", "20.04"}})
+
+			tms.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{Tag: "22.04"})
+			tms.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{Tag: "20.04"})
+
+			tms.AddTemplate(TEMPLATE_OLDVER, dataMakeOldVer{Tag: "22.04"})
+			tms.AddTemplate(TEMPLATE_OLDVER, dataMakeOldVer{Tag: "20.04"})
+
+			tms.writeTemplates(outf, box)
 
 			return nil
 		},
 	}
 }
 
-func writeTemplate(t string, data any, file string, append bool) {
-	var err error
-	var w io.Writer
-	if file == "stdout" {
-		w = os.Stdout
-	} else {
-		var f *os.File
-		if append {
-			f, err = os.OpenFile(file, os.O_WRONLY|os.O_APPEND, 0666)
-		} else {
-			f, err = os.Create(file)
+type dataMakeHeader struct {
+	Name string
+	Tags []string
+}
+
+type dataMakeResource = struct {
+	Tag      string
+	Resource string
+	Commands []string
+}
+
+type dataMakeOldVer = struct {
+	Tag       string
+	Resources []string
+}
+
+type BoxedWriter struct {
+	Title string
+	Out   io.Writer
+}
+
+func (bw *BoxedWriter) Write(p []byte) (n int, err error) {
+	content := strings.ReplaceAll(string(p), "\t", "   ") // Replace tabs with spaces
+	lines := strings.Split(content, "\n")
+
+	maxLen := 0
+	for _, line := range lines {
+		if len(line) > maxLen {
+			maxLen = len(line)
 		}
-		if err != nil {
-			slog.Error(err.Error())
-			os.Exit(1)
-		}
-		defer f.Close()
-		w = f
 	}
 
-	tmpl, err := template.New("").Delims("{{<", ">}}").Parse(t)
+	dashLen := maxLen - len(bw.Title) - 4
+	if dashLen < 0 {
+		dashLen = 0
+	}
+	titleLine := fmt.Sprintf("+-- %s %s+", bw.Title, strings.Repeat("-", dashLen))
+
+	var boxedLines []string
+	for _, line := range lines {
+		padding := strings.Repeat(" ", maxLen-len(line))
+		boxedLines = append(boxedLines, fmt.Sprintf("|%s%s|", line, padding))
+	}
+
+	bottomLine := "+" + strings.Repeat("-", maxLen) + "+"
+
+	boxed := append([]string{titleLine}, boxedLines...)
+	boxed = append(boxed, bottomLine)
+	full := "\n" + strings.Join(boxed, "\n") + "\n"
+
+	_, err = io.WriteString(bw.Out, full)
+	if err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// appendBuffer appends the rendered template to the provided buffer.
+func appendBuffer(buf *bytes.Buffer, tmpl string, data any) {
+	parsed, err := template.New("").Delims("{{<", ">}}").Parse(tmpl)
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
 
-	err = tmpl.Execute(w, data)
+	err = parsed.Execute(buf, data)
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+type Templates struct {
+	templates []string
+	tmplsdata []any
+}
+
+func NewTemplates(t string, data any) *Templates {
+	return &Templates{
+		templates: []string{t},
+		tmplsdata: []any{data},
+	}
+}
+
+func (ts *Templates) AddTemplate(t string, data any) {
+	ts.templates = append(ts.templates, t)
+	ts.tmplsdata = append(ts.tmplsdata, data)
+}
+
+func (ts *Templates) writeTemplates(file string, box bool) {
+	var err error
+	var buf bytes.Buffer
+
+	for i, t := range ts.templates {
+		data := ts.tmplsdata[i]
+		if data == nil {
+			data = struct{}{} // Use an empty struct if no data is provided
+		}
+		appendBuffer(&buf, t, data)
+	}
+
+	var w io.Writer
+	if file == "stdout" {
+		w = os.Stdout
+	} else {
+		if box {
+			w = &BoxedWriter{Title: file, Out: os.Stdout}
+		} else {
+			var f *os.File
+			f, err = os.Create(file)
+			if err != nil {
+				slog.Error(err.Error())
+				os.Exit(1)
+			}
+			defer f.Close()
+			w = f
+		}
+	}
+	_, err = w.Write(buf.Bytes())
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)

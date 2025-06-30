@@ -91,10 +91,11 @@ func cmdShowDeps() *cli.Command {
 				Deps []Dependency
 			}
 
-			writeTemplate(TMPL_MERMAID, tmplData{
+			tmpl := NewTemplates(TMPL_MERMAID, tmplData{
 				cmd.Bool("gfm"),
 				deps_sub,
-			}, "stdout", false)
+			})
+			tmpl.writeTemplates("stdout", false)
 			return nil
 		},
 	}
