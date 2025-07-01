@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -24,8 +25,157 @@ func cmdDev() *cli.Command {
 			cmdMakeImageDir(),
 			cmdCopyDockerfileStocks(),
 			cmdSaveDockerfileStocks(),
+			cmdDevConfig(),
 		},
 	}
+}
+
+func cmdDevConfig() *cli.Command {
+	return &cli.Command{
+		Name:               "config",
+		Usage:              "set gdocker configuration",
+		UsageText:          ``,
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          "[options]",
+		Description: `Create, save, update or show gdocker configuration.
+This command reads the gdocker configuration file and displays its contents.
+If options such as --docker-bin or --dir are specified, the configuration will be updated and saved.
+If no configuration file exists, a new one will be created with the provided options.
+
+Examples)
+#> gdocker dev config
+#> gdocker dev config --docker-bin /usr/local/bin/docker --dir ~/docker_images`,
+		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
+		Flags: []cli.Flag{
+			FLAG_DOCKER_BIN,
+			FLAG_DIRECTORY,
+			FLAG_CONFIG_GLOBAL,
+			FLAG_VERBOSE,
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("dev config", getLogLevel(cmd.Int("verbose")))
+			slog.SetDefault(logger)
+
+			var config Config
+			var err error
+			write := false
+			file := searchConfigFiles(cmd.StringSlice("config"))
+			if isFile(file) {
+				config, err = readConfig(file)
+				if err != nil {
+					slog.Error(err.Error())
+					os.Exit(1)
+				}
+				printConfig(config)
+			} else {
+				config = *NewConfig(
+					cmd.String("docker-bin"),
+					cmd.String("dir"),
+				)
+				write = true
+			}
+
+			if cmd.IsSet("docker-bin") && config.updateDockerBin(cmd.String("docker-bin")) {
+				write = true
+			}
+			if cmd.IsSet("dir") && config.updateDir(cmd.String("dir")) {
+				write = true
+			}
+			if write {
+				writeConfig(file, config)
+				printConfig(config)
+			}
+
+			return nil
+		},
+	}
+}
+
+func searchConfigFiles(files []string) string {
+	var final string
+	for _, file := range files {
+		if isFile(file) {
+			final = file
+		}
+	}
+	if final == "" {
+		return files[0]
+	}
+	return final
+}
+
+func printConfig(config Config) {
+	fmt.Printf("Docker binary: %s\n", config.DockerBin)
+	fmt.Printf("Docker image directory: %s\n", config.Dir)
+}
+
+func readConfig(file string) (Config, error) {
+	var config Config
+	f, err := os.Open(file)
+	if err != nil {
+		return config, err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	if err := decoder.Decode(&config); err != nil {
+		return config, err
+	}
+	slog.Info(fmt.Sprintf("cofiguration was read from '%s'", file))
+	return config, err
+}
+
+func writeConfig(file string, config Config) {
+	var w io.Writer
+	if file == "stdout" {
+		w = os.Stdout
+	} else {
+		var f *os.File
+		f, err := os.Create(file)
+		if err != nil {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+		defer f.Close()
+		w = f
+	}
+	b, err := json.Marshal(config)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	w.Write(b)
+	slog.Info(fmt.Sprintf("cofiguration was write to '%s'", file))
+}
+
+type Config struct {
+	DockerBin string `json:"docker_bin"`
+	Dir       string `json:"dir"`
+}
+
+func NewConfig(dockerBin, dir string) *Config {
+	return &Config{
+		DockerBin: dockerBin,
+		Dir:       dir,
+	}
+}
+
+func (c *Config) updateDockerBin(docker_bin string) bool {
+	if c.DockerBin != docker_bin {
+		slog.Info(fmt.Sprintf("config docker_bin '%s' is overridden by '%s'", c.DockerBin, docker_bin))
+		c.DockerBin = docker_bin
+		return true
+	}
+	return false
+}
+
+func (c *Config) updateDir(dir string) bool {
+	if dir != "" && c.Dir != dir {
+		slog.Info(fmt.Sprintf("config dir '%s' is overridden by '%s'", c.Dir, dir))
+		c.Dir = dir
+		return true
+	}
+	return false
 }
 
 func cmdSaveDockerfileStocks() *cli.Command {
