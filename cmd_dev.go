@@ -22,7 +22,7 @@ func cmdDev() *cli.Command {
 		Name:  "dev",
 		Usage: "subcommands for develop",
 		Commands: []*cli.Command{
-			cmdMakeRootDir(),
+			cmdDevInit(),
 			cmdMakeImageDir(),
 			cmdCopyDockerfileStocks(),
 			cmdSaveDockerfileStocks(),
@@ -269,7 +269,7 @@ func mkDirAll(dir string) {
 	}
 }
 
-func cmdMakeRootDir() *cli.Command {
+func cmdDevInit() *cli.Command {
 	return &cli.Command{
 		Name:   "init",
 		Usage:  "setup root directory and base images",
