@@ -161,7 +161,7 @@ func NewConfig(dockerBin, dir string) *Config {
 }
 
 func (c *Config) updateDockerBin(docker_bin string) bool {
-	if c.DockerBin != docker_bin {
+	if docker_bin != "" && c.DockerBin != docker_bin {
 		slog.Info(fmt.Sprintf("config docker_bin '%s' is overridden by '%s'", c.DockerBin, docker_bin))
 		c.DockerBin = docker_bin
 		return true
