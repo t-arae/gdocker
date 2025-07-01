@@ -32,14 +32,14 @@ func cmdClean() *cli.Command {
 		Description:        DESCRIPTION_CLEAN,
 		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
+			FLAG_DOCKER_BIN,
 			FLAG_DIRECTORY,
 			FLAG_LIST,
 			FLAG_MAKEFLAG,
 			FLAG_ALL,
-			FLAG_DRYRUN,
-			FLAG_DOCKER_BIN,
-			FLAG_VERBOSE,
 			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
+			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("clean", getLogLevel(cmd.Int("verbose")))

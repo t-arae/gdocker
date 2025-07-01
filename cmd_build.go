@@ -32,16 +32,16 @@ func cmdBuild() *cli.Command {
 		Description:        DESCRIPTION_BUILD,
 		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
+			FLAG_DOCKER_BIN,
 			FLAG_DIRECTORY,
 			FLAG_LIST,
 			FLAG_MAKEFLAG,
 			FLAG_TAG,
 			FLAG_ALL,
 			FLAG_ALL_LATEST,
-			FLAG_DRYRUN,
-			FLAG_VERBOSE,
-			FLAG_DOCKER_BIN,
 			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
+			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("build", getLogLevel(cmd.Int("verbose")))

@@ -54,12 +54,12 @@ func cmdImages() *cli.Command {
 		Description:        DESCRIPTION_IMAGES,
 		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
+			FLAG_DOCKER_BIN,
 			FLAG_DIRECTORY,
 			FLAG_BUILT_ONLY,
 			FLAG_EXIST_ONLY,
-			FLAG_VERBOSE,
-			FLAG_DOCKER_BIN,
 			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("images", getLogLevel(cmd.Int("verbose")))

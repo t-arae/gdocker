@@ -46,8 +46,8 @@ func cmdShowDeps() *cli.Command {
 			FLAG_ALL,
 			FLAG_ALL_LATEST,
 			FLAG_GFM,
-			FLAG_VERBOSE,
 			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("showdeps", getLogLevel(cmd.Int("verbose")))

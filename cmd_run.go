@@ -43,9 +43,9 @@ func cmdRun() *cli.Command {
 		Name:            "run",
 		Usage:           "docker run with uid and gid",
 		Flags: []cli.Flag{
-			FLAG_VERBOSE,
 			FLAG_DOCKER_BIN,
 			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
 		},
 		ArgsUsage:   ARGS_USAGE_RUN,
 		Description: DESCRIPTION_RUN,
@@ -86,8 +86,9 @@ func cmdRunWorkingDirectory() *cli.Command {
 		Name:            "wdrun",
 		Usage:           "docker run with uid, gid and working directory",
 		Flags: []cli.Flag{
-			FLAG_VERBOSE,
 			FLAG_DOCKER_BIN,
+			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
 		},
 		ArgsUsage:   ARGS_USAGE_RUN,
 		Description: DESCRIPTION_RUN,
