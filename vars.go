@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 
 	"github.com/urfave/cli/v3"
@@ -43,7 +47,7 @@ OUTPUT_IMAGE = touch $@
 DIR_MAKEFILE := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 DIR_OUT := cache
 
-.PHONY: latest clean clean-%
+.PHONY: latest clean-%
 
 define image_out
   $(addprefix $(DIR_OUT)/,$(addsuffix .log,$1))
@@ -52,13 +56,9 @@ endef
 IMG_NAME = {{< .Name >}}
 LATEST_VERSION = {{< index .Tags 0 >}}
 
-latest: $(DIR_OUT)/$(LATEST_VERSION).log
+$(DIR_OUT)/latest.log: $(DIR_OUT)/$(LATEST_VERSION).log
 	$(DOCKER_BIN) tag $(IMG_NAME):$(LATEST_VERSION) $(IMG_NAME):latest
-
-clean:
-	rm -rf $(DIR_OUT)/
-	set -o pipefail; $(DOCKER_BIN) images --format "$(IMG_NAME):{{.Tag}}" $(IMG_NAME) | \
-		xargs -I {} $(DOCKER_BIN) rmi {}
+	touch $(DIR_OUT)/latest.log
 
 clean-%:
 	$(DOCKER_BIN) rmi $(IMG_NAME):$(*)
@@ -103,17 +103,23 @@ exec /usr/sbin/gosu user "$@"
 `
 
 	TMPL_UBUNTU_PROMPT = `
-export PS1='🐳 \[\e[38;5;51m\]\h \[\e[38;5;45;1m\]\# \[\e[0;38;5;39m\]\t \[\e[0m\]@\[\e[38;5;45;1m\]\W\n\[\e[0;38;5;21m\]>\[\e[38;5;25m\]>\[\e[38;5;39m\]> \[\e[0m\]'
+PS1='🐳 \[\e[1m\]\# \[\e[0m\]\t @\W\n\[\e[38;5;39m\]>>>\[\e[0m\] '
 `
 )
 
 var (
 	// Common flags
 	FLAG_DIRECTORY = &cli.StringFlag{
-		Name:     "dir",
-		Aliases:  []string{"d"},
-		Usage:    "path to the root directory (`DIR`) for build images",
-		Required: true,
+		Name:    "dir",
+		Aliases: []string{"d"},
+		Usage:   "path to the root directory for build images",
+	}
+	FLAG_DIRECTORY_PWD = &cli.StringFlag{
+		Name:        "dir",
+		Aliases:     []string{"d"},
+		Usage:       "path to the root directory for build images",
+		DefaultText: fmt.Sprintf("absolute(`%s`)", "./docker_images"),
+		Value:       filepath.Join(getWd(), "docker_images"),
 	}
 	FLAG_VERBOSE = &cli.IntFlag{
 		Name:     "verbose",
@@ -123,6 +129,10 @@ var (
 		Required: false,
 	}
 	FLAG_DOCKER_BIN = &cli.StringFlag{
+		Name:  "docker-bin",
+		Usage: "path to the docker binary",
+	}
+	FLAG_DOCKER_BIN_DEFAULT = &cli.StringFlag{
 		Name:  "docker-bin",
 		Usage: "path to the docker binary",
 		Value: "docker",
@@ -196,10 +206,10 @@ var (
 		Required: false,
 	}
 	FLAG_ARCH = &cli.StringFlag{
-		Name:     "arch",
-		Aliases:  []string{"a"},
-		Usage:    "set cpu architecture ('arm' or 'x86_64')",
-		Required: true,
+		Name:    "arch",
+		Aliases: []string{"a"},
+		Usage:   "set cpu architecture ('arm' or 'x86_64')",
+		Value:   getCPUArch(),
 		Action: func(ctx context.Context, cmd *cli.Command, v string) error {
 			if slices.Index([]string{"arm", "x86_64"}, v) == -1 {
 				return fmt.Errorf("flag arch must be 'arm' or 'x86_64', not '%v'", v)
@@ -213,4 +223,40 @@ var (
 		Usage:    "directory path (`DIR`) for saving Dockfiles",
 		Required: true,
 	}
+	FLAG_CONFIG_DEFAULT = &cli.StringSliceFlag{
+		Name:        "config",
+		Usage:       "configuration file\n\t",
+		DefaultText: fmt.Sprintf("`{OS_CONFIG_DIR}/gdocker/%s`, `./gdocker_conf.json`", filepath.Base(getGlobalConfigFile())),
+		Value:       []string{getGlobalConfigFile(), "gdocker_conf.json"},
+	}
+	FLAG_CONFIG_GLOBAL = &cli.StringSliceFlag{
+		Name:        "config",
+		Usage:       "configuration file\n\t",
+		DefaultText: fmt.Sprintf("`{OS_CONFIG_DIR}/gdocker/%s`", filepath.Base(getGlobalConfigFile())),
+		Value:       []string{getGlobalConfigFile()},
+	}
 )
+
+func getCPUArch() string {
+	arch := runtime.GOARCH
+	switch arch {
+	case "amd64":
+		arch = "x86_64"
+	case "amd":
+		arch = "x86_64"
+	case "arm64":
+		arch = "arm"
+	}
+	return arch
+}
+
+func getGlobalConfigFile() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	dir = filepath.Join(dir, "gdocker")
+	mkDirAll(dir)
+	return filepath.Join(dir, "gdocker_conf.json")
+}

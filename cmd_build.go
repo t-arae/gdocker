@@ -41,12 +41,16 @@ func cmdBuild() *cli.Command {
 			FLAG_DRYRUN,
 			FLAG_VERBOSE,
 			FLAG_DOCKER_BIN,
+			FLAG_CONFIG_DEFAULT,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("build", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("dir")
+			config := loadConfig(cmd)
+			docker_bin := config.DockerBin
+			dir := config.Dir
+
 			common_tag := cmd.String("tag")
 
 			ibds := searchImageBuildDir(dir, "archive")
@@ -99,8 +103,8 @@ func cmdBuild() *cli.Command {
 				ibd := ibds.ibds[ibds.mapNameTag[image.String()]]
 
 				args := ibd.BuildMakeInstruction(image.Tag)
-				if cmd.String("docker-bin") != "docker" {
-					args = append(args, fmt.Sprintf("DOCKER_BIN=%s", cmd.String("docker-bin")))
+				if docker_bin != "docker" {
+					args = append(args, fmt.Sprintf("DOCKER_BIN=%s", docker_bin))
 				}
 				args = append(args, cmd.StringSlice("flag")...)
 				fmt.Println("make", strings.Join(args, " "))
@@ -110,10 +114,10 @@ func cmdBuild() *cli.Command {
 				if slices.Index(Strings(images), image.String()) != -1 {
 					args, ok := ibd.BuildTaggingInstruction(image.Tag, common_tag)
 					if ok {
-						fmt.Print(cmd.String("docker-bin"), strings.Join(args, " "))
+						fmt.Print(docker_bin, strings.Join(args, " "))
 					}
 					if !cmd.Bool("dry-run") && ok {
-						execCommand(cmd.String("docker-bin"), args)
+						execCommand(docker_bin, args)
 					}
 				}
 			}

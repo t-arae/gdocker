@@ -39,15 +39,19 @@ func cmdClean() *cli.Command {
 			FLAG_DRYRUN,
 			FLAG_DOCKER_BIN,
 			FLAG_VERBOSE,
+			FLAG_CONFIG_DEFAULT,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("clean", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("dir")
+			config := loadConfig(cmd)
+			docker_bin := config.DockerBin
+			dir := config.Dir
+
 			var flags []string
-			if cmd.String("docker-bin") != "docker" {
-				flags = append(flags, fmt.Sprintf("DOCKER_BIN=%s", cmd.String("docker-bin")))
+			if docker_bin != "docker" {
+				flags = append(flags, fmt.Sprintf("DOCKER_BIN=%s", docker_bin))
 			}
 			flags = append(flags, cmd.StringSlice("flag")...)
 
@@ -57,7 +61,7 @@ func cmdClean() *cli.Command {
 			inputs := checkImageNamesInput(cmd, ibds) // load input image names from -l and args
 
 			existsImages := make(map[string]struct{})
-			for _, eimg := range getExistImages(cmd.String("docker-bin")) {
+			for _, eimg := range getExistImages(docker_bin) {
 				existsImages[eimg.String()] = struct{}{}
 			}
 

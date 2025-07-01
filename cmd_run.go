@@ -45,6 +45,7 @@ func cmdRun() *cli.Command {
 		Flags: []cli.Flag{
 			FLAG_VERBOSE,
 			FLAG_DOCKER_BIN,
+			FLAG_CONFIG_DEFAULT,
 		},
 		ArgsUsage:   ARGS_USAGE_RUN,
 		Description: DESCRIPTION_RUN,
@@ -53,7 +54,8 @@ func cmdRun() *cli.Command {
 			var ca cmdArgs
 			ca.wd.Skip = true
 
-			args, isHelp, docker_path, lev := parseRunArgs(cmd.Args().Slice())
+			args, isHelp, config, lev := parseRunArgs(cmd.Args().Slice())
+			docker_path := config.DockerBin
 			if isHelp {
 				cli.HelpPrinter(os.Stdout, cli.SubcommandHelpTemplate, cmd)
 				return nil
@@ -61,9 +63,6 @@ func cmdRun() *cli.Command {
 			cmdargs := ca.buildCmdArgs(args)
 			logger := getLogger("run", lev)
 			slog.SetDefault(logger)
-			if docker_path != "docker" {
-				slog.Info(fmt.Sprintf("docker binary is set to '%s'", docker_path))
-			}
 
 			if slices.Index(cmdargs, "-it") == -1 {
 				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
@@ -96,7 +95,8 @@ func cmdRunWorkingDirectory() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var ca cmdArgs
 
-			args, isHelp, docker_path, lev := parseRunArgs(cmd.Args().Slice())
+			args, isHelp, config, lev := parseRunArgs(cmd.Args().Slice())
+			docker_path := config.DockerBin
 			if isHelp {
 				cli.HelpPrinter(os.Stdout, cli.SubcommandHelpTemplate, cmd)
 				return nil
@@ -104,9 +104,6 @@ func cmdRunWorkingDirectory() *cli.Command {
 			cmdargs := ca.buildCmdArgs(args)
 			logger := getLogger("wdrun", lev)
 			slog.SetDefault(logger)
-			if docker_path != "docker" {
-				slog.Info(fmt.Sprintf("docker binary is set to '%s'", docker_path))
-			}
 
 			if slices.Index(cmdargs, "-it") == -1 {
 				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
@@ -124,23 +121,22 @@ func cmdRunWorkingDirectory() *cli.Command {
 	}
 }
 
-func parseRunArgs(args []string) ([]string, bool, string, slog.Level) {
-	docker_path := "docker"
+func parseRunArgs(args []string) ([]string, bool, Config, slog.Level) {
 	lev := slog.LevelWarn
 
 	if len(args) == 1 && slices.Index([]string{"--help", "-h"}, args[0]) != -1 {
-		return []string{}, true, docker_path, lev
+		return []string{}, true, Config{}, lev
+	}
+
+	config, err := readConfig(searchConfigFiles(FLAG_CONFIG_DEFAULT.Value))
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 
 	if i := slices.Index(args, "---"); i != -1 {
 		gdargs := slices.Clone(args[0:i])
 		args = slices.Delete(args, 0, i+1)
-
-		if i_bin := slices.Index(gdargs, "--docker-bin"); i_bin != -1 {
-			if i_bin+1 < len(gdargs) {
-				docker_path = gdargs[i_bin+1]
-			}
-		}
 
 		if i_V := slices.IndexFunc(gdargs, func(e string) bool { return e == "--verbose" || e == "-V" }); i_V != -1 {
 			if i_V+1 < len(gdargs) {
@@ -148,9 +144,31 @@ func parseRunArgs(args []string) ([]string, bool, string, slog.Level) {
 				lev = getLogLevel(i)
 			}
 		}
-	}
 
-	return args, false, docker_path, lev
+		slog.SetDefault(getLogger("run", lev))
+
+		var config_files []string
+		for i, arg := range gdargs {
+			if strings.HasPrefix(arg, "--config") {
+				config_files = append(config_files, gdargs[i+1])
+			}
+		}
+		if len(config_files) != 0 {
+			config, err = readConfig(searchConfigFiles(config_files))
+			if err != nil {
+				slog.Error(err.Error())
+				os.Exit(1)
+			}
+		}
+
+		if i_bin := slices.Index(gdargs, "--docker-bin"); i_bin != -1 {
+			if i_bin+1 < len(gdargs) {
+				config.updateDockerBin(gdargs[i_bin+1])
+			}
+		}
+		return args, false, config, lev
+	}
+	return args, false, config, lev
 }
 
 // Working directoryのパスを返す

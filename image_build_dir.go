@@ -197,9 +197,6 @@ func (ibd *ImageBuildDir) BuildCleanInstruction(tag string) []string {
 
 // Returns a slice of string to build the docker image specified by the tag
 func (ibd *ImageBuildDir) BuildMakeInstruction(tag string) []string {
-	if tag == "latest" {
-		return []string{"-C", ibd.Directory(), "latest"}
-	}
 	return []string{"-C", ibd.Directory(), fmt.Sprintf("cache/%s.log", tag)}
 }
 

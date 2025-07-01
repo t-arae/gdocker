@@ -47,11 +47,14 @@ func cmdShowDeps() *cli.Command {
 			FLAG_ALL_LATEST,
 			FLAG_GFM,
 			FLAG_VERBOSE,
+			FLAG_CONFIG_DEFAULT,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("showdeps", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
-			dir := cmd.String("dir")
+
+			config := loadConfig(cmd)
+			dir := config.Dir
 
 			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()

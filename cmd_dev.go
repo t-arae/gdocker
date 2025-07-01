@@ -22,7 +22,7 @@ func cmdDev() *cli.Command {
 		Usage: "subcommands for develop",
 		Commands: []*cli.Command{
 			cmdDevInit(),
-			cmdMakeImageDir(),
+			cmdDevMakeImageDir(),
 			cmdCopyDockerfileStocks(),
 			cmdSaveDockerfileStocks(),
 			cmdDevConfig(),
@@ -38,57 +38,89 @@ func cmdDevConfig() *cli.Command {
 		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
 		ArgsUsage:          "[options]",
 		Description: `Create, save, update or show gdocker configuration.
-This command reads the gdocker configuration file and displays its contents.
-If options such as --docker-bin or --dir are specified, the configuration will be updated and saved.
-If no configuration file exists, a new one will be created with the provided options.
+	This command reads the gdocker configuration file and displays its contents.
+	If options such as --docker-bin or --dir are specified, the configuration will be updated and saved.
+	If no configuration file exists, a new one will be created with the provided options.
 
-Examples)
-#> gdocker dev config
-#> gdocker dev config --docker-bin /usr/local/bin/docker --dir ~/docker_images`,
+	Examples)
+	#> gdocker dev config
+	#> gdocker dev config --docker-bin docker --dir ~/docker_images`,
 		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
-			FLAG_DOCKER_BIN,
-			FLAG_DIRECTORY,
+			FLAG_DOCKER_BIN_DEFAULT,
+			FLAG_DIRECTORY_PWD,
 			FLAG_CONFIG_GLOBAL,
 			FLAG_VERBOSE,
+			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("dev config", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			var config Config
-			var err error
-			write := false
-			file := searchConfigFiles(cmd.StringSlice("config"))
-			if isFile(file) {
-				config, err = readConfig(file)
-				if err != nil {
-					slog.Error(err.Error())
-					os.Exit(1)
-				}
-				printConfig(config)
-			} else {
-				config = *NewConfig(
-					cmd.String("docker-bin"),
-					cmd.String("dir"),
-				)
-				write = true
-			}
-
-			if cmd.IsSet("docker-bin") && config.updateDockerBin(cmd.String("docker-bin")) {
-				write = true
-			}
-			if cmd.IsSet("dir") && config.updateDir(cmd.String("dir")) {
-				write = true
-			}
-			if write {
-				writeConfig(file, config)
-				printConfig(config)
-			}
+			loadAndSaveConfig(cmd)
 
 			return nil
 		},
 	}
+}
+
+func loadAndSaveConfig(cmd *cli.Command) Config {
+	var config Config
+	var err error
+	write := false
+	file := searchConfigFiles(cmd.StringSlice("config"))
+	if isFile(file) {
+		config, err = readConfig(file)
+		if err != nil {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+		printConfig(config)
+	} else {
+		config = *NewConfig(
+			cmd.String("docker-bin"),
+			cmd.String("dir"),
+		)
+		write = true
+	}
+
+	if cmd.IsSet("docker-bin") && config.updateDockerBin(cmd.String("docker-bin")) {
+		write = true
+	}
+	if cmd.IsSet("dir") && config.updateDir(cmd.String("dir")) {
+		write = true
+	}
+	if write {
+		if config.DockerBin == "" || config.Dir == "" {
+			slog.Error("docker-bin and dir must be set")
+			os.Exit(1)
+		}
+		writeConfig(file, config, cmd.Bool("dry-run"))
+		printConfig(config)
+	}
+
+	return config
+}
+
+func loadConfig(cmd *cli.Command) Config {
+	var config Config
+	var err error
+	file := searchConfigFiles(cmd.StringSlice("config"))
+	config, err = readConfig(file)
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	printConfig(config)
+
+	if cmd.IsSet("docker-bin") {
+		config.updateDockerBin(cmd.String("docker-bin"))
+	}
+	if cmd.IsSet("dir") {
+		config.updateDir(cmd.String("dir"))
+	}
+
+	return config
 }
 
 func searchConfigFiles(files []string) string {
@@ -121,31 +153,33 @@ func readConfig(file string) (Config, error) {
 	if err := decoder.Decode(&config); err != nil {
 		return config, err
 	}
-	slog.Info(fmt.Sprintf("cofiguration was read from '%s'", file))
+	slog.Info(fmt.Sprintf("configuration was read from '%s'", file))
 	return config, err
 }
 
-func writeConfig(file string, config Config) {
-	var w io.Writer
-	if file == "stdout" {
-		w = os.Stdout
-	} else {
-		var f *os.File
-		f, err := os.Create(file)
+func writeConfig(file string, config Config, dry_run bool) {
+	if !dry_run {
+		var w io.Writer
+		if file == "stdout" {
+			w = os.Stdout
+		} else {
+			var f *os.File
+			f, err := os.Create(file)
+			if err != nil {
+				slog.Error(err.Error())
+				os.Exit(1)
+			}
+			defer f.Close()
+			w = f
+		}
+		b, err := json.Marshal(config)
 		if err != nil {
-			slog.Error(err.Error())
+			fmt.Println(err)
 			os.Exit(1)
 		}
-		defer f.Close()
-		w = f
+		w.Write(b)
 	}
-	b, err := json.Marshal(config)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	w.Write(b)
-	slog.Info(fmt.Sprintf("cofiguration was write to '%s'", file))
+	slog.Info(fmt.Sprintf("configuration was write to '%s'", file))
 }
 
 type Config struct {
@@ -249,14 +283,16 @@ Examples)
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
 			FLAG_DIRECTORY_STOCK,
-			FLAG_DRYRUN,
+			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
+			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("dev cp", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("dir")
+			config := loadConfig(cmd)
+			dir := config.Dir
 			stock := cmd.String("stock")
 
 			type Stock struct {
@@ -302,25 +338,40 @@ Examples)
 	}
 }
 
-func cmdMakeImageDir() *cli.Command {
+func cmdDevMakeImageDir() *cli.Command {
 	return &cli.Command{
-		Name:   "mkdir",
-		Usage:  "prepare template for building image",
-		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
+		Name:               "mkdir",
+		Usage:              "prepare directory and Makefile for building image",
+		UsageText:          ``,
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          "[options]",
+		Description: `Prepare a template for building a Docker image.
+	This command creates the directory structure and Makefile needed
+	to build a new Docker image for the specified architecture, image name, and tags.
+	You can also specify resources and commands for each tag,
+	either directly or via standard input.
+	The command can be run in a dry-run mode to preview actions before execution.
+
+	Examples)
+	#> gdocker dev mkdir --name foo --tags "bar baz"
+	#> gdocker dev mkdir --arch x86_64 --name foo --tags "bar baz" -r bar:file.tar.gz:"curl -O ..."`,
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
 			FLAG_ARCH,
 			FLAG_NAME,
 			FLAG_TAGS,
 			FLAG_RESOURCES,
-			FLAG_DRYRUN,
+			FLAG_CONFIG_GLOBAL,
 			FLAG_VERBOSE,
+			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("dev mkdir", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("dir")
+			config := loadConfig(cmd)
+			dir := config.Dir
+
 			arch := cmd.String("arch")
 			name := cmd.String("name")
 
@@ -419,21 +470,38 @@ func mkDirAll(dir string) {
 
 func cmdDevInit() *cli.Command {
 	return &cli.Command{
-		Name:   "init",
-		Usage:  "setup root directory and base images",
-		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
+		Name:               "init",
+		Usage:              "setup root directory and base images",
+		UsageText:          ``,
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          "[options]",
+		Description: `Initialize the root directory and base images for gdocker.
+	This command creates the necessary directory structure and template files
+	for building base Docker images (ubuntu_a/ubuntu_x) for the specified architecture.
+	It generates directories, Dockerfiles, entrypoint scripts, and Makefiles for the base images.
+	If configuration options are provided, they are saved and used for initialization.
+	The command can be run in a dry-run mode to preview actions before execution.
+
+	Examples)
+	#> gdocker dev init
+	#> gdocker dev init --arch x86_64 --dry-run`,
 		Flags: []cli.Flag{
-			FLAG_DIRECTORY,
+			FLAG_DOCKER_BIN_DEFAULT,
+			FLAG_DIRECTORY_PWD,
 			FLAG_ARCH,
-			FLAG_DRYRUN,
-			FLAG_VERBOSE,
 			FLAG_TIMEZONE,
+			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
+			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("dev init", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("dir")
+			config := loadAndSaveConfig(cmd)
+
+			dir := config.Dir
+
 			arch := cmd.String("arch")
 			var name, platform string
 			switch arch {
@@ -443,9 +511,6 @@ func cmdDevInit() *cli.Command {
 			case "x86_64":
 				name = "ubuntu_x"
 				platform = "linux/amd64"
-			default:
-				slog.Error("invalid arch string.")
-				os.Exit(1)
 			}
 
 			outf, outf1, outf2 := "stdout", "stdout", "stdout"

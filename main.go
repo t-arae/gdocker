@@ -26,12 +26,23 @@ func cmdMain() *cli.Command {
 	cmd.Flags = []cli.Flag{
 		FLAG_VERBOSE,
 		FLAG_DOCKER_BIN,
+		FLAG_CONFIG_DEFAULT,
 	}
 	cmd.Version = fmt.Sprintf("%s %s", APP_VERSION, getDockerVersion("docker"))
 	cmd.Before = func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 		logger := getLogger("main", getLogLevel(cmd.Int("verbose")))
 		slog.SetDefault(logger)
-		cmd.Version = fmt.Sprintf("%s %s", APP_VERSION, getDockerVersion(cmd.String("docker-bin")))
+
+		config, err := readConfig(searchConfigFiles(cmd.StringSlice("config")))
+		if err != nil {
+			slog.Warn(err.Error())
+			config.updateDockerBin("docker")
+		}
+
+		config.updateDockerBin(cmd.String("docker-bin"))
+		docker_bin := config.DockerBin
+
+		cmd.Version = fmt.Sprintf("%s %s", APP_VERSION, getDockerVersion(docker_bin))
 		return ctx, nil
 	}
 

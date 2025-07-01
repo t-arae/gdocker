@@ -59,16 +59,20 @@ func cmdImages() *cli.Command {
 			FLAG_EXIST_ONLY,
 			FLAG_VERBOSE,
 			FLAG_DOCKER_BIN,
+			FLAG_CONFIG_DEFAULT,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("images", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("dir")
+			config := loadConfig(cmd)
+			docker_bin := config.DockerBin
+			dir := config.Dir
+
 			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()
 
-			imgs := getExistImages(cmd.String("docker-bin"))
+			imgs := getExistImages(docker_bin)
 			imgs_map := make(map[string]struct{})
 			for _, img := range imgs {
 				imgs_map[img.String()] = struct{}{}
