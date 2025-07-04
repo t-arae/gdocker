@@ -7,30 +7,11 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/urfave/cli/v3"
 )
-
-func isDir(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	} else {
-		return info.IsDir()
-	}
-}
-
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	} else {
-		return !info.IsDir()
-	}
-}
 
 // Find lines which starts with prefix from a text file
 func findLines(path string, prefix string) []string {
@@ -56,43 +37,6 @@ func findLines(path string, prefix string) []string {
 	}
 
 	return results
-}
-
-//// Check whether the element x is in the slice s
-//func IsIn[T comparable](x T, s []T) bool {
-//	for _, v := range s {
-//		if v == x {
-//			return true
-//		}
-//	}
-//	return false
-//}
-
-func copyFile(source string, dest string) {
-	data, err := os.ReadFile(source)
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-	if isFile(dest) {
-		slog.Warn(fmt.Sprintf("%s is already exist. skipped.", dest))
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0777); err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-	f, err := os.Create(dest)
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-	defer f.Close()
-	_, err = f.Write(data)
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
 }
 
 func setSubCommandHelpTemplate(tmpl string) func(context.Context, *cli.Command) (context.Context, error) {
