@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"io"
 	"log/slog"
 	"os"
 	"strings"
+	"text/template"
 )
 
 type dataMakeHeader struct {
