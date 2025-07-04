@@ -218,10 +218,11 @@ var (
 		},
 	}
 	FLAG_DIRECTORY_STOCK = &cli.StringFlag{
-		Name:     "stock",
-		Aliases:  []string{"s"},
-		Usage:    "directory path (`DIR`) for saving Dockfiles",
-		Required: true,
+		Name:        "stock",
+		Aliases:     []string{"s"},
+		Usage:       "directory path for saving Dockfiles",
+		DefaultText: fmt.Sprintf("absolute(`%s`)", "./stock"),
+		Value:       filepath.Join(getWd(), "stock"),
 	}
 	FLAG_CONFIG_DEFAULT = &cli.StringSliceFlag{
 		Name:        "config",
