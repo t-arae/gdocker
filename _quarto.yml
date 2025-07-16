@@ -1,0 +1,41 @@
+project:
+    type: website
+
+website:
+  title: gdocker
+  favicon: 'favicon.ico'
+  image: 'logo.png'
+  site-url: 'https://t-arae.quarto.pub/gdocker/'
+  site-path: '/'
+  navbar:
+    left:
+      - text: about
+        menu:
+          - href: doc/usage.qmd
+            text: usage
+      - text: subcommands
+        menu:
+          - href: doc/showdeps.qmd
+            text: showdeps
+          - href: doc/build.qmd
+            text: build
+          - href: doc/run.qmd
+            text: run, wdrun
+          - href: doc/images.qmd
+            text: images
+          - href: doc/clean.qmd
+            text: clean
+          - href: doc/dev.qmd
+            text: dev
+    right:
+      - icon: github
+        href: https://github.com/t-arae/gdocker/
+  open-graph:
+    image: "logo.png"
+
+format:
+  html:
+    theme:
+      light: flatly
+    toc: true
+    css: doc/styles.css

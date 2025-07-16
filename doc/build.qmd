@@ -1,0 +1,19 @@
+---
+engine: knitr
+embed-resources: true
+---
+
+## `gdocker build`
+
+Build Docker images with automatic dependency resolution.
+To see help and available options for this command:
+
+```{bash}
+gdocker help build
+```
+
+Example: See the build instructions of the `star_a:latest` image (and its dependencies if needed) in the `docker_images/arm` directory:
+
+```{bash}
+gdocker build -n star_a
+```

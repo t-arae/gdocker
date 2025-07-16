@@ -1,0 +1,20 @@
+---
+engine: knitr
+embed-resources: true
+---
+
+## `gdocker clean`
+
+Remove Docker images created by `gdocker`.
+
+To see help and available options for this command:
+
+```{bash}
+gdocker help clean
+```
+
+Example: See the commands to remove all images matching `ubuntu_a:*` in the `docker_images` directory:
+
+```{bash}
+gdocker clean -n ubuntu_a:*
+```
