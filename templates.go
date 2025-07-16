@@ -10,11 +10,6 @@ import (
 	"text/template"
 )
 
-type dataMakeHeader struct {
-	Name string
-	Tags []string
-}
-
 type dataMakeResource = struct {
 	Tag      string
 	Resource string

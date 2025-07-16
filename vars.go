@@ -71,8 +71,9 @@ $(DIR_OUT):
 	TMPL_UBUNTU_DOCKERFILE = `FROM --platform={{< .Platform >}} ubuntu:{{< .Tag >}}
 
 ENV TZ={{< .TimeZone >}}
-
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get -y install gosu zstd tzdata ca-certificates openssl vim
+COPY cache/gargs /usr/local/bin/gargs
 COPY docker_prompt.sh /etc/profile.d/docker_prompt.sh
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

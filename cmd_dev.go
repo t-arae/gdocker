@@ -21,12 +21,361 @@ func cmdDev() *cli.Command {
 		Commands: []*cli.Command{
 			cmdDevInit(),
 			cmdDevMakeImageDir(),
-			cmdCopyDockerfileStocks(),
-			cmdSaveDockerfileStocks(),
 			cmdDevConfig(),
+			cmdDevSave(),
+			cmdCopyDockerfileStocks(),
 		},
 	}
 }
+
+var (
+	DESCRIPTION_DEV_INIT = `Initialize the root directory and base images for gdocker.
+	This command creates the necessary directory structure and template files
+	for building base Docker images (ubuntu_a/ubuntu_x) for the specified architecture.
+	It generates directories, Dockerfiles, entrypoint scripts, and Makefiles for the base images.
+	If configuration options are provided, they are saved and used for initialization.
+	The command can be run in a dry-run mode to preview actions before execution.
+
+	Examples)
+	#> gdocker dev init
+	#> gdocker dev init --arch x86_64 --dry-run`
+)
+
+func cmdDevInit() *cli.Command {
+	return &cli.Command{
+		Name:               "init",
+		Usage:              "setup root directory and base images",
+		UsageText:          ``,
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          "[options]",
+		Description:        DESCRIPTION_DEV_INIT,
+		Flags: []cli.Flag{
+			FLAG_DOCKER_BIN_DEFAULT,
+			FLAG_DIRECTORY_PWD,
+			FLAG_ARCH,
+			FLAG_TIMEZONE,
+			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
+			FLAG_DRYRUN,
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("dev init", getLogLevel(cmd.Int("verbose")))
+			slog.SetDefault(logger)
+
+			config := loadAndSaveConfig(cmd)
+
+			dir := config.Dir
+
+			arch := cmd.String("arch")
+			var name, platform string
+			switch arch {
+			case "arm":
+				name = "ubuntu_a"
+				platform = "linux/arm64/v8"
+			case "x86_64":
+				name = "ubuntu_x"
+				platform = "linux/amd64"
+			}
+
+			outf, outf1, outf2 := "stdout", "stdout", "stdout"
+
+			dir1, dir2 := filepath.Join(dir, arch, name, "22.04"), filepath.Join(dir, arch, name, "20.04")
+			slog.Info(fmt.Sprintf("creating root directory for %s images", platform))
+			slog.Info(fmt.Sprintf(`making directories:
+
+%s (root directory)
+└── %s (architecture root directory)
+    └── %s (base image)
+        ├── 22.04
+        └── 20.04
+`, dir, arch, name))
+			if !cmd.Bool("dry-run") {
+				mkDirAll(dir1)
+				mkDirAll(dir2)
+			}
+
+			// docker_prompt.sh
+			outf1, outf2 = filepath.Join(dir1, "docker_prompt.sh"), filepath.Join(dir2, "docker_prompt.sh")
+			slog.Info("creating shell prompt setups:")
+
+			box := cmd.Bool("dry-run")
+			NewTemplates(TMPL_UBUNTU_PROMPT, nil).writeTemplates(outf1, box)
+			NewTemplates(TMPL_UBUNTU_PROMPT, nil).writeTemplates(outf2, box)
+
+			// entrypoint.sh
+			outf1, outf2 = filepath.Join(dir1, "entrypoint.sh"), filepath.Join(dir2, "entrypoint.sh")
+			slog.Info("creating entrypoint scripts:")
+			NewTemplates(TMPL_UBUNTU_ENTRYPOINT, nil).writeTemplates(outf1, box)
+			NewTemplates(TMPL_UBUNTU_ENTRYPOINT, nil).writeTemplates(outf2, box)
+
+			// Dockerfile
+			timezone := cmd.String("timezone")
+			outf1, outf2 = filepath.Join(dir1, "Dockerfile"), filepath.Join(dir2, "Dockerfile")
+			slog.Info("creating Dockerfiles:")
+			NewTemplates(
+				TMPL_UBUNTU_DOCKERFILE,
+				map[string]string{
+					"Tag":      "22.04",
+					"Platform": platform,
+					"TimeZone": timezone,
+				},
+			).writeTemplates(outf1, box)
+			NewTemplates(
+				TMPL_UBUNTU_DOCKERFILE,
+				map[string]string{
+					"Tag":      "20.04",
+					"Platform": platform,
+					"TimeZone": timezone,
+				},
+			).writeTemplates(outf2, box)
+
+			// Makefile
+			outf = filepath.Join(dir, arch, name, "Makefile")
+			slog.Info("creating Makefile:")
+
+			tms := NewTemplates(
+				TMPL_MAKEFILE,
+				map[string]any{
+					"Name": name,
+					"Tags": []string{"22.04", "20.04"},
+				},
+			)
+
+			var goarch string
+			switch name {
+			case "ubuntu_a":
+				goarch = "arm64"
+			case "ubuntu_x":
+				goarch = "amd64"
+			}
+			tms.AddTemplate(
+				TEMPLATE_RESOURCE,
+				map[string]any{
+					"Tag":      "22.04",
+					"Resource": "gargs",
+					"Commands": []string{
+						"GOOS=linux GOARCH=" + goarch + " go build -o gargs github.com/brentp/gargs",
+						"mv gargs $(@D)/gargs",
+					},
+				},
+			)
+			tms.AddTemplate(
+				TEMPLATE_RESOURCE,
+				map[string]any{
+					"Tag":      "20.04",
+					"Resource": "gargs",
+					"Commands": []string{
+						"GOOS=linux GOARCH=" + goarch + " go build -o gargs github.com/brentp/gargs",
+						"mv gargs $(@D)/gargs",
+					},
+				},
+			)
+
+			tms.AddTemplate(
+				TEMPLATE_OLDVER,
+				map[string]any{
+					"Tag":       "22.04",
+					"Resources": []string{"22.04/$(DIR_OUT)/gargs"},
+				},
+			)
+			tms.AddTemplate(
+				TEMPLATE_OLDVER,
+				map[string]any{
+					"Tag":       "20.04",
+					"Resources": []string{"20.04/$(DIR_OUT)/gargs"},
+				},
+			)
+
+			tms.writeTemplates(outf, box)
+
+			return nil
+		},
+	}
+}
+
+var (
+	DESCRIPTION_DEV_MKDIR = `Prepare a template for building a Docker image.
+	This command creates the directory structure and Makefile needed
+	to build a new Docker image for the specified architecture, image name, and tags.
+	You can also specify resources and commands for each tag,
+	either directly or via standard input.
+	The command can be run in a dry-run mode to preview actions before execution.
+
+	Examples)
+	#> gdocker dev mkdir --name foo --tags "bar baz"
+	#> # format 1  -r {Tag}:{File}:{Cmd}
+	#> # define one line command to prepare a resource for image building
+	#> gdocker dev mkdir --arch x86_64 --name foo --tags "bar baz" -r bar:file.tar.gz:"curl -O ..."
+	#> # format 2 -r stdin
+	#> # define multi lines command to prepare resources for image building
+	#> gdocker dev mkdir --name foo --tags "bar baz" \
+	#>     -r stdin << 'EOF'
+	#> bar
+	#> resource1.txt
+	#> curl -O http://example.com/resource1.txt
+	#> bar
+	#> baz
+	#> resource2.txt.gz
+	#> curl -O http://example.com/resource2.txt
+	#> gzip resource2.txt
+	#> baz
+	#> EOF
+	#> `
+)
+
+func cmdDevMakeImageDir() *cli.Command {
+	return &cli.Command{
+		Name:               "mkdir",
+		Usage:              "prepare directory and Makefile for building image",
+		UsageText:          ``,
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          "[options]",
+		Description:        DESCRIPTION_DEV_MKDIR,
+		Flags: []cli.Flag{
+			FLAG_DIRECTORY,
+			FLAG_ARCH,
+			FLAG_NAME,
+			FLAG_TAGS,
+			FLAG_RESOURCES,
+			FLAG_CONFIG_GLOBAL,
+			FLAG_VERBOSE,
+			FLAG_DRYRUN,
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("dev mkdir", getLogLevel(cmd.Int("verbose")))
+			slog.SetDefault(logger)
+
+			config := loadConfig(cmd)
+			dir := config.Dir
+
+			arch := cmd.String("arch")
+			name := cmd.String("name")
+
+			var tag_list []string
+			if cmd.IsSet("tags") {
+				tag_list = append(tag_list, strings.Split(cmd.String("tags"), " ")...)
+			}
+			if cmd.NArg() > 0 {
+				tag_list = append(tag_list, cmd.Args().Slice()...)
+			}
+			tm := NewTemplates(TMPL_MAKEFILE, map[string]any{"Name": name, "Tags": tag_list})
+			var oldvers = make([]dataMakeOldVer, len(tag_list))
+			for i := range oldvers {
+				oldvers[i].Tag = tag_list[i]
+			}
+
+			var dataMakeResources []dataMakeResource
+			if slices.Contains(cmd.StringSlice("resource"), "stdin") {
+				sc := bufio.NewScanner(os.Stdin)
+				for sc.Scan() {
+					if slices.Contains(tag_list, sc.Text()) {
+						temp_tag := sc.Text()
+						if !sc.Scan() {
+							slog.Error(fmt.Sprintf("insufficient resource '%s'", temp_tag))
+							os.Exit(1)
+						}
+						resource := sc.Text()
+						var commands []string
+						for sc.Scan() {
+							if sc.Text() == temp_tag {
+								break
+							}
+							commands = append(commands, sc.Text())
+						}
+						tm.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{temp_tag, resource, commands})
+						dataMakeResources = append(dataMakeResources, dataMakeResource{temp_tag, resource, commands})
+						i := slices.Index(tag_list, temp_tag)
+						oldvers[i].Resources = append(oldvers[i].Resources, resource)
+					} else {
+						slog.Error("invalid stdin")
+						os.Exit(1)
+					}
+				}
+			}
+			if cmd.IsSet("resource") {
+				for _, r := range cmd.StringSlice("resource") {
+					if r == "stdin" {
+						continue
+					}
+					sp := strings.SplitN(r, ":", 3)
+					if len(sp) != 3 {
+						slog.Error(fmt.Sprintf("%s does not contain ':'", r))
+						os.Exit(1)
+					}
+					if !slices.Contains(tag_list, sp[0]) {
+						slog.Error(fmt.Sprintf("could not found tag '%s'", sp[0]))
+						os.Exit(1)
+					}
+					tm.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{sp[0], sp[1], []string{sp[2]}})
+					dataMakeResources = append(dataMakeResources, dataMakeResource{sp[0], sp[1], []string{sp[2]}})
+					i := slices.Index(tag_list, sp[0])
+					oldvers[i].Resources = append(oldvers[i].Resources, filepath.Join(sp[0], "$(DIR_OUT)", sp[1]))
+				}
+			}
+
+			for _, oldver := range oldvers {
+				tm.AddTemplate(TEMPLATE_OLDVER, oldver)
+			}
+
+			var outf string
+			if !cmd.Bool("dry-run") {
+				mkDirAll(filepath.Join(dir, arch, name))
+			}
+			outf = filepath.Join(dir, arch, name, "Makefile")
+			tm.writeTemplates(outf, cmd.Bool("dry-run"))
+
+			slices.SortFunc(dataMakeResources, func(a, b dataMakeResource) int {
+				return len(a.Commands) - len(b.Commands)
+			})
+
+			tms := NewTemplates(
+				`gdocker dev mkdir --arch {{< .Arch >}} --name {{< .Name >}} --tags "{{< .Tags >}}"`,
+				map[string]any{
+					"Arch": arch,
+					"Name": name,
+					"Tags": cmd.String("tags"),
+				},
+			)
+			first_multiple := true
+			for _, d := range dataMakeResources {
+				if len(d.Commands) == 1 {
+					tms.AddTemplate(` \
+	-r {{< .Tag >}}:{{< .Resource >}}:'{{< index .Commands 0 >}}'`, d)
+				} else {
+					if first_multiple {
+						tms.AddTemplate(` \
+	-r stdin << 'EOF'
+`, nil)
+						first_multiple = false
+					}
+					tms.AddTemplate(`{{< .Tag >}}
+{{< .Resource >}}{{< range .Commands >}}
+{{< . >}}{{< end >}}
+{{< .Tag >}}
+`, d)
+				}
+			}
+			if !first_multiple {
+				tms.AddTemplate(`EOF
+`, nil)
+			}
+			tms.writeTemplates(filepath.Join(dir, arch, name, "reproduce.sh"), cmd.Bool("dry-run"))
+
+			return nil
+		},
+	}
+}
+
+var (
+	DESCRIPTION_DEV_CONFIG = `Create, save, update or show gdocker configuration.
+	This command reads the gdocker configuration file and displays its contents.
+	If options such as --docker-bin or --dir are specified, the configuration will be updated and saved.
+	If no configuration file exists, a new one will be created with the provided options.
+
+	Examples)
+	#> gdocker dev config
+	#> gdocker dev config --docker-bin docker --dir ~/docker_images`
+)
 
 func cmdDevConfig() *cli.Command {
 	return &cli.Command{
@@ -35,15 +384,8 @@ func cmdDevConfig() *cli.Command {
 		UsageText:          ``,
 		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
 		ArgsUsage:          "[options]",
-		Description: `Create, save, update or show gdocker configuration.
-	This command reads the gdocker configuration file and displays its contents.
-	If options such as --docker-bin or --dir are specified, the configuration will be updated and saved.
-	If no configuration file exists, a new one will be created with the provided options.
-
-	Examples)
-	#> gdocker dev config
-	#> gdocker dev config --docker-bin docker --dir ~/docker_images`,
-		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
+		Description:        DESCRIPTION_DEV_CONFIG,
+		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
 			FLAG_DOCKER_BIN_DEFAULT,
 			FLAG_DIRECTORY_PWD,
@@ -62,26 +404,31 @@ func cmdDevConfig() *cli.Command {
 	}
 }
 
-func cmdSaveDockerfileStocks() *cli.Command {
+var (
+	DESCRIPTION_DEV_SAVE = `Helps to save pre-existing Dockerfiles into specified directory.
+	This command copies Dockerfiles from the image building directories to the
+	specified directory. The image building directories will be searched recursively
+	from the root directory specified by "--dir". The command can be run in a
+	dry-run mode to preview actions before run. The stocked Dockerfile name will
+	be "Dockerfile_ubuntu_a;22.04", when the docker image is "ubuntu_a:22.04".
+
+	Examples)
+	#> gdocker dev save --dir docker_images/arm -n`
+)
+
+func cmdDevSave() *cli.Command {
 	return &cli.Command{
 		Name:               "save",
 		Usage:              "save Dockerfiles into directory",
 		UsageText:          ``,
 		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
 		ArgsUsage:          "[options]",
-		Description: `Helps to save pre-existing Dockerfiles into specified directory.
-This command copies Dockerfiles from the image building directories to the
-specified directory. The image building directories will be searched recursively
-from the root directory specified by "--dir". The command can be run in a
-dry-run mode to preview actions before run. The stocked Dockerfile name will
-be "Dockerfile_ubuntu_a;22.04", when the docker image is "ubuntu_a:22.04".
-
-Examples)
-#> gdocker dev save --dir docker_images/arm --stock stock/ -n`,
-		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
+		Description:        DESCRIPTION_DEV_SAVE,
+		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
 			FLAG_DIRECTORY_STOCK,
+			FLAG_CONFIG_DEFAULT,
 			FLAG_DRYRUN,
 			FLAG_VERBOSE,
 		},
@@ -89,8 +436,9 @@ Examples)
 			logger := getLogger("dev save", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			dir := cmd.String("dir")
-			stock := cmd.String("stock")
+			config := loadConfig(cmd)
+			dir := config.Dir
+			stock := config.StockDir
 
 			ibds := searchImageBuildDir(dir, "archive")
 
@@ -100,15 +448,45 @@ Examples)
 					slog.Info(fmt.Sprintf("skipped files in '%s'", ibd.Directory()))
 					continue
 				}
+
+				arch := filepath.Base(ibd.dirParent)
+
+				// {stock}/{arm,x86_64}/reproduce.sh_{image_name}
+				source := filepath.Join(ibd.Directory(), "reproduce.sh")
+				dest := filepath.Join(stock, arch, fmt.Sprintf("reproduce.sh_%s", ibd.dirImage))
+				if cmd.Bool("dry-run") {
+					fmt.Printf("%s -> %s\n", source, dest)
+				} else {
+					copyFile(source, dest)
+				}
+
+				// Copy Dockerfiles to stock directory
+				// {stock}/{arm,x86_64}/Dockerfile_{image_name};{tag}
 				for _, tag := range ibd.dirTags {
 					source := filepath.Join(ibd.Directory(), tag, "Dockerfile")
-					dest := filepath.Join(stock, filepath.Base(ibd.dirParent), fmt.Sprintf("Dockerfile_%s;%s", ibd.dirImage, tag))
+					dest := filepath.Join(stock, arch, fmt.Sprintf("Dockerfile_%s;%s", ibd.dirImage, tag))
 					if cmd.Bool("dry-run") {
 						fmt.Printf("%s -> %s\n", source, dest)
 					} else {
 						copyFile(source, dest)
 					}
 				}
+
+				// {stock}/{arm,x86_64}/cache/{image_name};{tag};{file_name}
+				for _, tag := range ibd.dirTags {
+					source := filepath.Join(ibd.Directory(), tag, "cache")
+					if !isDir(source) {
+						continue
+					}
+					dest := filepath.Join(stock, arch, fmt.Sprintf("cache.tar_%s;%s", ibd.dirImage, tag))
+					if cmd.Bool("dry-run") {
+						fmt.Printf("%s -> %s\n", source, dest)
+					} else {
+						createTarFile(source, dest)
+						//copyFile(source, dest)
+					}
+				}
+
 			}
 			return nil
 		},
@@ -122,13 +500,13 @@ func cmdCopyDockerfileStocks() *cli.Command {
 		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
 		ArgsUsage:          "[options]",
 		Description: `Helps to copy stocked Dockerfiles into image building directories.
-This command copies Dockerfiles from the stock directory to the appropriate
-image building directories. The 'correct' image building directory will be
-searched from the root directory specified by "--dir". The command can be
-run in a dry-run mode to preview actions before run.
+	This command copies Dockerfiles from the stock directory to the appropriate
+	image building directories. The 'correct' image building directory will be
+	searched from the root directory specified by "--dir". The command can be
+	run in a dry-run mode to preview actions before run.
 
-Examples)
-#> gdocker dev cp --dir docker_images/ --stock stock/ -n`,
+	Examples)
+	#> gdocker dev cp --dir docker_images/ --stock stock/ -n`,
 		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
 		Flags: []cli.Flag{
 			FLAG_DIRECTORY,
@@ -182,256 +560,6 @@ Examples)
 					copyFile(st.path, outf)
 				}
 			}
-
-			return nil
-		},
-	}
-}
-
-func cmdDevMakeImageDir() *cli.Command {
-	return &cli.Command{
-		Name:               "mkdir",
-		Usage:              "prepare directory and Makefile for building image",
-		UsageText:          ``,
-		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
-		ArgsUsage:          "[options]",
-		Description: `Prepare a template for building a Docker image.
-	This command creates the directory structure and Makefile needed
-	to build a new Docker image for the specified architecture, image name, and tags.
-	You can also specify resources and commands for each tag,
-	either directly or via standard input.
-	The command can be run in a dry-run mode to preview actions before execution.
-
-	Examples)
-	#> gdocker dev mkdir --name foo --tags "bar baz"
-	#> gdocker dev mkdir --arch x86_64 --name foo --tags "bar baz" -r bar:file.tar.gz:"curl -O ..."`,
-		Flags: []cli.Flag{
-			FLAG_DIRECTORY,
-			FLAG_ARCH,
-			FLAG_NAME,
-			FLAG_TAGS,
-			FLAG_RESOURCES,
-			FLAG_CONFIG_GLOBAL,
-			FLAG_VERBOSE,
-			FLAG_DRYRUN,
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev mkdir", getLogLevel(cmd.Int("verbose")))
-			slog.SetDefault(logger)
-
-			config := loadConfig(cmd)
-			dir := config.Dir
-
-			arch := cmd.String("arch")
-			name := cmd.String("name")
-
-			var tag_list []string
-			if cmd.IsSet("tags") {
-				tag_list = append(tag_list, strings.Split(cmd.String("tags"), " ")...)
-			}
-			if cmd.NArg() > 0 {
-				tag_list = append(tag_list, cmd.Args().Slice()...)
-			}
-			tm := NewTemplates(TMPL_MAKEFILE, dataMakeHeader{Name: name, Tags: tag_list})
-			var oldvers = make([]dataMakeOldVer, len(tag_list))
-			for i := range oldvers {
-				oldvers[i].Tag = tag_list[i]
-			}
-
-			// format `-r {Tag}:{File}:{Cmd}` or `-r stdin`
-			// ex) `-r 22.04:software.tar.gz:"curl -O https://example.com/software.tar.gz"`
-			//  or
-			// ex) `-r stdin << 'EOF'
-			// ex) 22.04
-			// ex) software.tar.gz:curl -O https://example.com/software.tar.gz
-			// ex) gzip -xzf software.tar.gz
-			// ex) ./software \
-			// ex)     -o example.txt
-			// ex) 22.04
-			// ex) EOF
-			// ex) `
-			if slices.Contains(cmd.StringSlice("resource"), "stdin") {
-				sc := bufio.NewScanner(os.Stdin)
-				for sc.Scan() {
-					if slices.Contains(tag_list, sc.Text()) {
-						temp_tag := sc.Text()
-						if !sc.Scan() {
-							slog.Error(fmt.Sprintf("insufficient resource '%s'", temp_tag))
-							os.Exit(1)
-						}
-						resource := sc.Text()
-						var commands []string
-						for sc.Scan() {
-							if sc.Text() == temp_tag {
-								break
-							}
-							commands = append(commands, sc.Text())
-						}
-						tm.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{temp_tag, resource, commands})
-						i := slices.Index(tag_list, temp_tag)
-						oldvers[i].Resources = append(oldvers[i].Resources, resource)
-					} else {
-						slog.Error("invalid stdin")
-						os.Exit(1)
-					}
-				}
-			}
-			if cmd.IsSet("resource") {
-				for _, r := range cmd.StringSlice("resource") {
-					if r == "stdin" {
-						continue
-					}
-					sp := strings.SplitN(r, ":", 3)
-					if len(sp) != 3 {
-						slog.Error(fmt.Sprintf("%s does not contain ':'", r))
-						os.Exit(1)
-					}
-					if !slices.Contains(tag_list, sp[0]) {
-						slog.Error(fmt.Sprintf("could not found tag '%s'", sp[0]))
-						os.Exit(1)
-					}
-					tm.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{sp[0], sp[1], []string{sp[2]}})
-					i := slices.Index(tag_list, sp[0])
-					oldvers[i].Resources = append(oldvers[i].Resources, filepath.Join(sp[0], "$(DIR_OUT)", sp[1]))
-				}
-			}
-
-			for _, oldver := range oldvers {
-				tm.AddTemplate(TEMPLATE_OLDVER, oldver)
-			}
-
-			var outf string
-			if !cmd.Bool("dry-run") {
-				mkDirAll(filepath.Join(dir, arch, name))
-			}
-			outf = filepath.Join(dir, arch, name, "Makefile")
-			tm.writeTemplates(outf, cmd.Bool("dry-run"))
-			return nil
-		},
-	}
-}
-
-func mkDirAll(dir string) {
-	if err := os.MkdirAll(dir, 0777); err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-}
-
-func cmdDevInit() *cli.Command {
-	return &cli.Command{
-		Name:               "init",
-		Usage:              "setup root directory and base images",
-		UsageText:          ``,
-		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
-		ArgsUsage:          "[options]",
-		Description: `Initialize the root directory and base images for gdocker.
-	This command creates the necessary directory structure and template files
-	for building base Docker images (ubuntu_a/ubuntu_x) for the specified architecture.
-	It generates directories, Dockerfiles, entrypoint scripts, and Makefiles for the base images.
-	If configuration options are provided, they are saved and used for initialization.
-	The command can be run in a dry-run mode to preview actions before execution.
-
-	Examples)
-	#> gdocker dev init
-	#> gdocker dev init --arch x86_64 --dry-run`,
-		Flags: []cli.Flag{
-			FLAG_DOCKER_BIN_DEFAULT,
-			FLAG_DIRECTORY_PWD,
-			FLAG_ARCH,
-			FLAG_TIMEZONE,
-			FLAG_CONFIG_DEFAULT,
-			FLAG_VERBOSE,
-			FLAG_DRYRUN,
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev init", getLogLevel(cmd.Int("verbose")))
-			slog.SetDefault(logger)
-
-			config := loadAndSaveConfig(cmd)
-
-			dir := config.Dir
-
-			arch := cmd.String("arch")
-			var name, platform string
-			switch arch {
-			case "arm":
-				name = "ubuntu_a"
-				platform = "linux/arm64/v8"
-			case "x86_64":
-				name = "ubuntu_x"
-				platform = "linux/amd64"
-			}
-
-			outf, outf1, outf2 := "stdout", "stdout", "stdout"
-
-			dir1 := filepath.Join(dir, arch, name, "22.04")
-			dir2 := filepath.Join(dir, arch, name, "20.04")
-			slog.Info(fmt.Sprintf("creating root directory for %s images", platform))
-			slog.Info(fmt.Sprintf(`making directories:
-
-%s (root directory)
-└── %s (architecture root directory)
-    └── %s (base image)
-        ├── 22.04
-        └── 20.04
-`, dir, arch, name))
-			if !cmd.Bool("dry-run") {
-				mkDirAll(dir1)
-				mkDirAll(dir2)
-			}
-
-			// docker_prompt.sh
-			outf1 = filepath.Join(dir1, "docker_prompt.sh")
-			outf2 = filepath.Join(dir2, "docker_prompt.sh")
-			slog.Info("creating shell prompt setups:")
-
-			box := cmd.Bool("dry-run")
-			NewTemplates(TMPL_UBUNTU_PROMPT, nil).writeTemplates(outf1, box)
-			NewTemplates(TMPL_UBUNTU_PROMPT, nil).writeTemplates(outf2, box)
-
-			// entrypoint.sh
-			outf1 = filepath.Join(dir1, "entrypoint.sh")
-			outf2 = filepath.Join(dir2, "entrypoint.sh")
-			slog.Info("creating entrypoint scripts:")
-			NewTemplates(TMPL_UBUNTU_ENTRYPOINT, nil).writeTemplates(outf1, box)
-			NewTemplates(TMPL_UBUNTU_ENTRYPOINT, nil).writeTemplates(outf2, box)
-
-			// Dockerfile
-			type tmplData struct {
-				RootDir  string
-				Name     string
-				Tag      string
-				Platform string
-				TimeZone string
-			}
-
-			timezone := cmd.String("timezone")
-			outf1 = filepath.Join(dir1, "Dockerfile")
-			outf2 = filepath.Join(dir2, "Dockerfile")
-			slog.Info("creating Dockerfiles:")
-			NewTemplates(
-				TMPL_UBUNTU_DOCKERFILE,
-				tmplData{Tag: "22.04", Platform: platform, TimeZone: timezone},
-			).writeTemplates(outf1, box)
-			NewTemplates(
-				TMPL_UBUNTU_DOCKERFILE,
-				tmplData{Tag: "20.04", Platform: platform, TimeZone: timezone},
-			).writeTemplates(outf2, box)
-
-			// Makefile
-			outf = filepath.Join(dir, arch, name, "Makefile")
-			slog.Info("creating Makefile:")
-
-			tms := NewTemplates(TMPL_MAKEFILE, dataMakeHeader{Name: name, Tags: []string{"22.04", "20.04"}})
-
-			tms.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{Tag: "22.04"})
-			tms.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{Tag: "20.04"})
-
-			tms.AddTemplate(TEMPLATE_OLDVER, dataMakeOldVer{Tag: "22.04"})
-			tms.AddTemplate(TEMPLATE_OLDVER, dataMakeOldVer{Tag: "20.04"})
-
-			tms.writeTemplates(outf, box)
 
 			return nil
 		},

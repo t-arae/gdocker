@@ -145,8 +145,10 @@ func searchConfigFiles(files []string) string {
 }
 
 func printConfig(config Config) {
-	fmt.Printf("Docker binary: %s\n", config.DockerBin)
-	fmt.Printf("Docker image directory: %s\n", config.Dir)
+	slog.Info(fmt.Sprintf(`config settings
+Docker binary: '%s'
+Docker image directory: '%s'
+`, config.DockerBin, config.Dir))
 }
 
 // readConfig reads the configuration from a JSON file.
