@@ -1,0 +1,9 @@
+.cell-output-stdout {
+  max-height: 500px;
+  overflow-y: auto;
+  background-color: #444444;
+}
+
+.cell-output-stdout code {
+  color: #DDDDDD;
+}

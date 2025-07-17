@@ -71,8 +71,9 @@ $(DIR_OUT):
 	TMPL_UBUNTU_DOCKERFILE = `FROM --platform={{< .Platform >}} ubuntu:{{< .Tag >}}
 
 ENV TZ={{< .TimeZone >}}
-
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get -y install gosu zstd tzdata ca-certificates openssl vim
+COPY cache/gargs /usr/local/bin/gargs
 COPY docker_prompt.sh /etc/profile.d/docker_prompt.sh
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
@@ -218,10 +219,11 @@ var (
 		},
 	}
 	FLAG_DIRECTORY_STOCK = &cli.StringFlag{
-		Name:     "stock",
-		Aliases:  []string{"s"},
-		Usage:    "directory path (`DIR`) for saving Dockfiles",
-		Required: true,
+		Name:        "stock",
+		Aliases:     []string{"s"},
+		Usage:       "directory path for saving Dockfiles",
+		DefaultText: fmt.Sprintf("absolute(`%s`)", "./stock"),
+		Value:       filepath.Join(getWd(), "stock"),
 	}
 	FLAG_CONFIG_DEFAULT = &cli.StringSliceFlag{
 		Name:        "config",

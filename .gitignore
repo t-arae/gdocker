@@ -1,2 +1,8 @@
 .DS_Store
 gdocker
+
+docker_images/
+stock/
+/.quarto/
+_site
+gdocker_conf.json

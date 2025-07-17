@@ -22,12 +22,13 @@ var (
 var (
 	TMPL_MERMAID = `{{< if .GFM >}}` + "```mermaid" + `{{< end >}}
 flowchart TD
-	classDef root fill:#8BA7D5,color:#000000
-	classDef latest fill:#E38692,color:#000000
-	classDef latestimg fill:#F6D580,color:#000000
-	classDef old fill:#81D674,color:#000000
+
+    classDef root fill:#8BA7D5,color:#000000
+    classDef latest fill:#E38692,color:#000000
+    classDef latestimg fill:#F6D580,color:#000000
+    classDef old fill:#81D674,color:#000000
 {{< range .Deps >}}
-	{{< . >}}{{< end >}}
+    {{< . >}}{{< end >}}
 {{< if .GFM >}}` + "```" + `{{< end >}}
 `
 )

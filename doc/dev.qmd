@@ -1,0 +1,44 @@
+---
+engine: knitr
+embed-resources: true
+---
+
+## `gdocker dev`
+
+Provides utilities to setting up and managing directories and templates for Docker image building.
+
+To see help and available options for this command:
+
+```{bash}
+gdocker help dev
+```
+
+### `gdocker dev init`
+
+```{bash}
+gdocker dev init -h
+```
+
+### `gdocker dev mkdir`
+
+```{bash}
+gdocker dev mkdir -h
+```
+
+### `gdocker dev config`
+
+```{bash}
+gdocker dev config -h
+```
+
+### `gdocker dev save`
+
+```{bash}
+gdocker dev save -h
+```
+
+### `gdocker dev cp`
+
+```{bash}
+gdocker dev cp -h
+```

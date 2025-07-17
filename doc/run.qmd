@@ -1,0 +1,33 @@
+---
+engine: knitr
+embed-resources: true
+---
+
+## `gdocker run`, `gdocker wdrun`
+
+Run commands inside Docker containers with user, group (`run`), and working directory (`wdrun`) presets.
+
+To see help and available options for these commands:
+
+```{bash}
+#| eval: false
+gdocker help run
+# gdocker help wdrun
+```
+
+```{bash}
+#| echo: false
+gdocker help run
+```
+
+Example: Run a simple command in the ubuntu_a image:
+
+```{bash}
+gdocker run ubuntu_a bash -c 'echo "Hello `uname`"'
+```
+
+Example: Run a command in the ubuntu_a image with working directory and verbosity options:
+
+```{bash}
+gdocker wdrun --verbose 0 --- ubuntu_a ls docker_images/arm | head -4
+```

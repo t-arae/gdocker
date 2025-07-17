@@ -1,0 +1,38 @@
+---
+engine: knitr
+embed-resources: true
+---
+
+# どうやって使うか
+
+## 初期化
+
+```{bash}
+gdocker dev init -n -V 0
+```
+
+## イメージ作成用ディレクトリの作成
+
+```{bash}
+gdocker dev mkdir -V 0 --name bowtie2_a --tags "2.5.1 2.4.4" \
+    -r 2.5.1:bowtie2-2.5.1-linux-aarch64.zip:'curl --output $@ -L https://github.com/BenLangmead/bowtie2/releases/download/v2.5.1/bowtie2-2.5.1-linux-aarch64.zip' \
+    -r 2.4.4:bowtie2-2.4.4-linux-aarch64.zip:'curl --output $@ -L https://github.com/BenLangmead/bowtie2/releases/download/v2.4.4/bowtie2-2.4.4-linux-aarch64.zip'
+```
+
+```{bash}
+gdocker dev mkdir ${OPT_VERVOSE} ${OPT_DIR} --arch x86_64 --name bamscale_x --tags 0.0.5 -r stdin << 'EOF'
+0.0.5
+libBigWig
+git clone --depth 1 https://github.com/dpryan79/libBigWig.git $(@D)
+0.0.5
+0.0.5
+BAMscale
+mkdir -p $(dir $(@D))/BAMscale
+cd $(dir $(@D))/BAMscale
+git init
+git remote add origin https://github.com/ncbi/BAMscale.git
+git fetch --depth 1 origin dfde02929707d4fc3415ffb5224a0a053c779588
+git checkout FETCH_HEAD
+0.0.5
+EOF
+```

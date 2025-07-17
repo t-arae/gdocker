@@ -15,6 +15,7 @@ import (
 type Config struct {
 	DockerBin string `json:"docker_bin"`
 	Dir       string `json:"dir"`
+	StockDir  string `json:"stock_dir,omitempty"` // Optional field for stock directory
 }
 
 // NewConfig creates a new Config instance.
@@ -42,6 +43,15 @@ func (c *Config) updateDir(dir string) bool {
 	if dir != "" && c.Dir != dir {
 		slog.Info(fmt.Sprintf("config dir '%s' is overridden by '%s'", c.Dir, dir))
 		c.Dir = dir
+		return true
+	}
+	return false
+}
+
+func (c *Config) updateStockDir(stock string) bool {
+	if stock != "" && c.StockDir != stock {
+		slog.Info(fmt.Sprintf("config stock '%s' is overridden by '%s'", c.StockDir, stock))
+		c.StockDir = stock
 		return true
 	}
 	return false
@@ -77,6 +87,9 @@ func loadAndSaveConfig(cmd *cli.Command) Config {
 	if cmd.IsSet("dir") && config.updateDir(cmd.String("dir")) {
 		write = true
 	}
+	if cmd.IsSet("stock") && config.updateStockDir(cmd.String("stock")) {
+		write = true
+	}
 	if write {
 		if config.DockerBin == "" || config.Dir == "" {
 			slog.Error("docker-bin and dir must be set")
@@ -109,6 +122,9 @@ func loadConfig(cmd *cli.Command) Config {
 	if cmd.IsSet("dir") {
 		config.updateDir(cmd.String("dir"))
 	}
+	if config.StockDir == "" || cmd.IsSet("stock") {
+		config.updateStockDir(cmd.String("stock"))
+	}
 
 	return config
 }
@@ -129,8 +145,10 @@ func searchConfigFiles(files []string) string {
 }
 
 func printConfig(config Config) {
-	fmt.Printf("Docker binary: %s\n", config.DockerBin)
-	fmt.Printf("Docker image directory: %s\n", config.Dir)
+	slog.Info(fmt.Sprintf(`config settings
+Docker binary: '%s'
+Docker image directory: '%s'
+`, config.DockerBin, config.Dir))
 }
 
 // readConfig reads the configuration from a JSON file.

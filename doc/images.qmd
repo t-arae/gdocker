@@ -1,0 +1,20 @@
+---
+engine: knitr
+embed-resources: true
+---
+
+## `gdocker images`
+
+List and inspect available Docker images in a specified directory.
+
+To see help and available options for this command:
+
+```{bash}
+gdocker help images
+```
+
+Example: List all images in the `docker_images` directory in TSV format and format the output as a pretty table using [`csvtk`](https://github.com/shenwei356/csvtk):
+
+```{bash}
+gdocker images -e -b | csvtk pretty -t
+```

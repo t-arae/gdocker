@@ -1,4 +1,4 @@
-module gdocker
+module github.com/t-arae/gdocker
 
 go 1.23.4
 

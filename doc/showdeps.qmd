@@ -1,0 +1,30 @@
+---
+engine: knitr
+embed-resources: true
+---
+
+## `gdocker showdeps`
+
+Display the dependency graph for specified Docker images.
+
+To see help and available options for this command:
+
+```{bash}
+gdocker help showdeps
+```
+
+Example: Show the dependency graph for selected images in Mermaid format on GFM:
+
+```{bash}
+#| eval: false
+gdocker showdeps bigtools_a samtools_a:1.17 star_a:*
+```
+
+:::{.mermaid}
+```{=html}
+`r ngsmisc::run_get_stdout("gdocker showdeps bigtools_a samtools_a:1.17 star_a:*")`
+```
+:::
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script> mermaid.initialize({ startOnLoad: true }); </script>
