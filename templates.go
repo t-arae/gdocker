@@ -111,7 +111,7 @@ func (ts *Templates) writeTemplates(file string, box bool) {
 		w = os.Stdout
 	} else {
 		if box {
-			w = &BoxedWriter{Title: file, Out: os.Stdout}
+			w = &BoxedWriter{Title: anonymizeWd(file, true), Out: os.Stdout}
 		} else {
 			var f *os.File
 			f, err = os.Create(file)

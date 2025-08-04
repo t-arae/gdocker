@@ -71,14 +71,15 @@ $(DIR_OUT):
 	TMPL_UBUNTU_DOCKERFILE = `FROM --platform={{< .Platform >}} ubuntu:{{< .Tag >}}
 
 ENV TZ={{< .TimeZone >}}
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get -y install gosu zstd tzdata ca-certificates openssl vim
-COPY cache/gargs /usr/local/bin/gargs
-COPY docker_prompt.sh /etc/profile.d/docker_prompt.sh
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-RUN mkdir /data /config /share
 VOLUME ["/data", "/config", "/share"]
+COPY docker_prompt.sh /config/docker_prompt.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY cache/rush /usr/local/bin/rush
+RUN apt-get update && apt-get install -y \
+        gosu zstd tzdata ca-certificates openssl \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/list/* \
+        && chmod +x /usr/local/bin/entrypoint.sh
 WORKDIR /data
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
@@ -98,7 +99,7 @@ fi
 useradd -u $USER_ID -o -m user
 groupmod -g $GROUP_ID -o user
 export HOME=/home/user
-cat /etc/profile.d/docker_prompt.sh >> ${HOME}/.bashrc
+cat /config/docker_prompt.sh >> ${HOME}/.bashrc
 exec /usr/sbin/gosu user "$@"
 
 `
@@ -111,16 +112,11 @@ PS1='🐳 \[\e[1m\]\# \[\e[0m\]\t @\W\n\[\e[38;5;39m\]>>>\[\e[0m\] '
 var (
 	// Common flags
 	FLAG_DIRECTORY = &cli.StringFlag{
-		Name:    "dir",
-		Aliases: []string{"d"},
-		Usage:   "path to the root directory for build images",
-	}
-	FLAG_DIRECTORY_PWD = &cli.StringFlag{
 		Name:        "dir",
 		Aliases:     []string{"d"},
 		Usage:       "path to the root directory for build images",
-		DefaultText: fmt.Sprintf("absolute(`%s`)", "./docker_images"),
-		Value:       filepath.Join(getWd(), "docker_images"),
+		DefaultText: anonymizeHomeDir(getDefaultDir(), false),
+		Value:       getDefaultDir(),
 	}
 	FLAG_VERBOSE = &cli.IntFlag{
 		Name:     "verbose",
@@ -228,14 +224,19 @@ var (
 	FLAG_CONFIG_DEFAULT = &cli.StringSliceFlag{
 		Name:        "config",
 		Usage:       "configuration file\n\t",
-		DefaultText: fmt.Sprintf("`{OS_CONFIG_DIR}/gdocker/%s`, `./gdocker_conf.json`", filepath.Base(getGlobalConfigFile())),
+		DefaultText: fmt.Sprintf("`%s`, `./gdocker_conf.json`", anonymizeConfigFile(getGlobalConfigFile(), false)),
 		Value:       []string{getGlobalConfigFile(), "gdocker_conf.json"},
 	}
 	FLAG_CONFIG_GLOBAL = &cli.StringSliceFlag{
 		Name:        "config",
 		Usage:       "configuration file\n\t",
-		DefaultText: fmt.Sprintf("`{OS_CONFIG_DIR}/gdocker/%s`", filepath.Base(getGlobalConfigFile())),
+		DefaultText: anonymizeConfigFile(getGlobalConfigFile(), false),
 		Value:       []string{getGlobalConfigFile()},
+	}
+	FLAG_SHOW_ABSPATH = &cli.BoolFlag{
+		Name:  "show-abspath",
+		Usage: "show absolute path instead of annonymized path",
+		Value: false,
 	}
 )
 
@@ -252,13 +253,41 @@ func getCPUArch() string {
 	return arch
 }
 
-func getGlobalConfigFile() string {
+func getGlobalConfigFileDirAlias() string {
+	switch runtime.GOOS {
+	case "windwos":
+		return "%AppData%"
+	case "darwin", "ios":
+		return "$HOME/Library/Application Support"
+	case "plan9":
+		return "$home/lib"
+	default:
+		dir := os.Getenv("XDG_CONFIG_HOME")
+		if dir != "" {
+			return dir + "/.config"
+		}
+		return "$HOME/.config"
+	}
+}
+
+func getGlobalConfigFileDir() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
-	dir = filepath.Join(dir, "gdocker")
-	mkDirAll(dir)
-	return filepath.Join(dir, "gdocker_conf.json")
+	return filepath.Join(dir, "gdocker")
+}
+
+func getGlobalConfigFile() string {
+	return filepath.Join(getGlobalConfigFileDir(), "gdocker_conf.json")
+}
+
+func getDefaultDir() string {
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	return filepath.Join(dir, "gdocker", "docker_images")
 }

@@ -21,7 +21,6 @@ func cmdDev() *cli.Command {
 		Commands: []*cli.Command{
 			cmdDevInit(),
 			cmdDevMakeImageDir(),
-			cmdDevConfig(),
 			cmdDevSave(),
 			cmdCopyDockerfileStocks(),
 		},
@@ -51,9 +50,10 @@ func cmdDevInit() *cli.Command {
 		Description:        DESCRIPTION_DEV_INIT,
 		Flags: []cli.Flag{
 			FLAG_DOCKER_BIN_DEFAULT,
-			FLAG_DIRECTORY_PWD,
+			FLAG_DIRECTORY,
 			FLAG_ARCH,
 			FLAG_TIMEZONE,
+			FLAG_SHOW_ABSPATH,
 			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
 			FLAG_DRYRUN,
@@ -62,7 +62,7 @@ func cmdDevInit() *cli.Command {
 			logger := getLogger("dev init", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadAndSaveConfig(cmd)
+			config, _ := loadConfig(cmd)
 
 			dir := config.Dir
 
@@ -88,7 +88,7 @@ func cmdDevInit() *cli.Command {
     └── %s (base image)
         ├── 22.04
         └── 20.04
-`, dir, arch, name))
+`, anonymizeWd(dir, config.ShowAbspath), arch, name))
 			if !cmd.Bool("dry-run") {
 				mkDirAll(dir1)
 				mkDirAll(dir2)
@@ -152,10 +152,11 @@ func cmdDevInit() *cli.Command {
 				TEMPLATE_RESOURCE,
 				map[string]any{
 					"Tag":      "22.04",
-					"Resource": "gargs",
+					"Resource": "rush",
 					"Commands": []string{
-						"GOOS=linux GOARCH=" + goarch + " go build -o gargs github.com/brentp/gargs",
-						"mv gargs $(@D)/gargs",
+						"curl --output $(@D)/rush.tar.gz -L https://github.com/shenwei356/rush/releases/download/v0.7.0/rush_linux_" + goarch + ".tar.gz",
+						"tar -xzf $(@D)/rush.tar.gz",
+						"mv rush $(@D)/rush",
 					},
 				},
 			)
@@ -163,10 +164,11 @@ func cmdDevInit() *cli.Command {
 				TEMPLATE_RESOURCE,
 				map[string]any{
 					"Tag":      "20.04",
-					"Resource": "gargs",
+					"Resource": "rush",
 					"Commands": []string{
-						"GOOS=linux GOARCH=" + goarch + " go build -o gargs github.com/brentp/gargs",
-						"mv gargs $(@D)/gargs",
+						"curl --output $(@D)/rush.tar.gz -L https://github.com/shenwei356/rush/releases/download/v0.7.0/rush_linux_" + goarch + ".tar.gz",
+						"tar -xzf $(@D)/rush.tar.gz",
+						"mv rush $(@D)/rush",
 					},
 				},
 			)
@@ -175,14 +177,14 @@ func cmdDevInit() *cli.Command {
 				TEMPLATE_OLDVER,
 				map[string]any{
 					"Tag":       "22.04",
-					"Resources": []string{"22.04/$(DIR_OUT)/gargs"},
+					"Resources": []string{"22.04/$(DIR_OUT)/rush"},
 				},
 			)
 			tms.AddTemplate(
 				TEMPLATE_OLDVER,
 				map[string]any{
 					"Tag":       "20.04",
-					"Resources": []string{"20.04/$(DIR_OUT)/gargs"},
+					"Resources": []string{"20.04/$(DIR_OUT)/rush"},
 				},
 			)
 
@@ -245,7 +247,7 @@ func cmdDevMakeImageDir() *cli.Command {
 			logger := getLogger("dev mkdir", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadConfig(cmd)
+			config, _ := loadConfig(cmd)
 			dir := config.Dir
 
 			arch := cmd.String("arch")
@@ -319,7 +321,9 @@ func cmdDevMakeImageDir() *cli.Command {
 
 			var outf string
 			if !cmd.Bool("dry-run") {
-				mkDirAll(filepath.Join(dir, arch, name))
+				for _, tag := range tag_list {
+					mkDirAll(filepath.Join(dir, arch, name, tag))
+				}
 			}
 			outf = filepath.Join(dir, arch, name, "Makefile")
 			tm.writeTemplates(outf, cmd.Bool("dry-run"))
@@ -367,44 +371,6 @@ func cmdDevMakeImageDir() *cli.Command {
 }
 
 var (
-	DESCRIPTION_DEV_CONFIG = `Create, save, update or show gdocker configuration.
-	This command reads the gdocker configuration file and displays its contents.
-	If options such as --docker-bin or --dir are specified, the configuration will be updated and saved.
-	If no configuration file exists, a new one will be created with the provided options.
-
-	Examples)
-	#> gdocker dev config
-	#> gdocker dev config --docker-bin docker --dir ~/docker_images`
-)
-
-func cmdDevConfig() *cli.Command {
-	return &cli.Command{
-		Name:               "config",
-		Usage:              "set gdocker configuration",
-		UsageText:          ``,
-		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
-		ArgsUsage:          "[options]",
-		Description:        DESCRIPTION_DEV_CONFIG,
-		Before:             setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
-		Flags: []cli.Flag{
-			FLAG_DOCKER_BIN_DEFAULT,
-			FLAG_DIRECTORY_PWD,
-			FLAG_CONFIG_GLOBAL,
-			FLAG_VERBOSE,
-			FLAG_DRYRUN,
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev config", getLogLevel(cmd.Int("verbose")))
-			slog.SetDefault(logger)
-
-			loadAndSaveConfig(cmd)
-
-			return nil
-		},
-	}
-}
-
-var (
 	DESCRIPTION_DEV_SAVE = `Helps to save pre-existing Dockerfiles into specified directory.
 	This command copies Dockerfiles from the image building directories to the
 	specified directory. The image building directories will be searched recursively
@@ -436,7 +402,7 @@ func cmdDevSave() *cli.Command {
 			logger := getLogger("dev save", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadConfig(cmd)
+			config, _ := loadConfig(cmd)
 			dir := config.Dir
 			stock := config.StockDir
 
@@ -519,7 +485,7 @@ func cmdCopyDockerfileStocks() *cli.Command {
 			logger := getLogger("dev cp", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadConfig(cmd)
+			config, _ := loadConfig(cmd)
 			dir := config.Dir
 			stock := cmd.String("stock")
 

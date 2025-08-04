@@ -12,11 +12,13 @@ import (
 var (
 	ARGS_USAGE_SHOWDEPS  = "[options] [image names...]"
 	DESCRIPTION_SHOWDEPS = `Checks and shows dependencies between images.
-	This command defines a subcommand showdeps that checks and displays the dependencies between Docker images as a Mermaid flowchart. Here's a short description of the command's key components:
+	This command defines a subcommand showdeps that checks and displays
+	the dependencies between Docker images as a Mermaid flowchart.
+	Here's a short description of the command's key components:
 
 	Examples)
-	#> gdocker showdeps --dir docker_images/arm
-	#> gdocker showdeps --dir docker_images/arm --gfm`
+	#> gdocker showdeps
+	#> gdocker showdeps --gfm`
 )
 
 var (
@@ -54,7 +56,7 @@ func cmdShowDeps() *cli.Command {
 			logger := getLogger("showdeps", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadConfig(cmd)
+			config, _ := loadConfig(cmd)
 			dir := config.Dir
 
 			ibds := searchImageBuildDir(dir, "archive")
