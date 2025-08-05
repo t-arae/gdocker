@@ -53,8 +53,9 @@ func cmdConfigShow() *cli.Command {
 			fmt.Printf(`config file           : '%s'
 Docker binary         : '%s'
 Docker image directory: '%s'
+Default architecture  : '%s'
 Show absolute path    :  %v
-`, anonymizeConfigFile(file, c.ShowAbspath), c.DockerBin, anonymizeWd(c.Dir, c.ShowAbspath), c.ShowAbspath)
+`, anonymizeConfigFile(file, c.ShowAbspath), c.DockerBin, anonymizeWd(c.Dir, c.ShowAbspath), c.DefaultArch, c.ShowAbspath)
 
 			return nil
 		},
@@ -63,8 +64,9 @@ Show absolute path    :  %v
 
 var (
 	DESCRIPTION_CONFIG_WRITE = `Create and update gdocker configuration.
-	If options are specified (--docker-bin, --dir etc.), the configuration will be updated.
-	If no configuration file exists, a new one will be created with the provided options.
+	If options are specified (e.g. --dir), the configuration will be updated.
+	If no configuration file exists, a new one will be created with
+	the provided (+ default) options.
 
 	Examples)
 	#> gdocker config write`
@@ -82,8 +84,9 @@ func cmdConfigWrite() *cli.Command {
 		Flags: []cli.Flag{
 			FLAG_DOCKER_BIN_DEFAULT,
 			FLAG_DIRECTORY,
+			FLAG_ARCH,
 			FLAG_SHOW_ABSPATH,
-			FLAG_CONFIG_GLOBAL,
+			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
 			FLAG_DRYRUN,
 		},
@@ -100,6 +103,7 @@ func cmdConfigWrite() *cli.Command {
 
 var (
 	DESCRIPTION_CONFIG_REMOVE = `Remove gdocker configuration.
+	This command removes the configuration file.
 
 	Examples)
 	#> gdocker config remove`

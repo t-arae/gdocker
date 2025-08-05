@@ -32,7 +32,6 @@ var (
 	This command creates the necessary directory structure and template files
 	for building base Docker images (ubuntu_a/ubuntu_x) for the specified architecture.
 	It generates directories, Dockerfiles, entrypoint scripts, and Makefiles for the base images.
-	If configuration options are provided, they are saved and used for initialization.
 	The command can be run in a dry-run mode to preview actions before execution.
 
 	Examples)
@@ -65,8 +64,7 @@ func cmdDevInit() *cli.Command {
 			config, _ := loadConfig(cmd)
 
 			dir := config.Dir
-
-			arch := cmd.String("arch")
+			arch := config.DefaultArch
 			var name, platform string
 			switch arch {
 			case "arm":
@@ -249,8 +247,8 @@ func cmdDevMakeImageDir() *cli.Command {
 
 			config, _ := loadConfig(cmd)
 			dir := config.Dir
+			arch := config.DefaultArch
 
-			arch := cmd.String("arch")
 			name := cmd.String("name")
 
 			var tag_list []string

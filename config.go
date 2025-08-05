@@ -18,15 +18,17 @@ import (
 type Config struct {
 	DockerBin   string `json:"docker_bin"`
 	Dir         string `json:"dir"`
+	DefaultArch string `json:"arch"`
 	StockDir    string `json:"stock_dir,omitempty"` // Optional field for stock directory
 	ShowAbspath bool   `json:"show_abspath,omitempty"`
 }
 
 // NewConfig creates a new Config instance.
-func NewConfig(dockerBin, dir string) *Config {
+func NewConfig(dockerBin, dir, arch string) *Config {
 	return &Config{
-		DockerBin: dockerBin,
-		Dir:       dir,
+		DockerBin:   dockerBin,
+		Dir:         dir,
+		DefaultArch: arch,
 	}
 }
 
@@ -47,6 +49,15 @@ func (c *Config) updateDir(dir string) bool {
 	if dir != "" && c.Dir != dir {
 		slog.Info(fmt.Sprintf("overwrite `dir`: '%s' with '%s'", c.Dir, dir))
 		c.Dir = dir
+		return true
+	}
+	return false
+}
+
+func (c *Config) updateDefaultArch(arch string) bool {
+	if arch != "" && c.DefaultArch != arch {
+		slog.Info(fmt.Sprintf("overwrite `arch`: '%s' with '%s'", c.DefaultArch, arch))
+		c.DefaultArch = arch
 		return true
 	}
 	return false
@@ -79,6 +90,11 @@ func loadAndSaveConfig(cmd *cli.Command) (Config, string) {
 	var err error
 	write := false
 	file := searchConfigFiles(cmd.StringSlice("config"))
+	dir, err := filepath.Abs(cmd.String("dir"))
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
 	if isFile(file) {
 		config, err = readConfig(file)
 		if err != nil {
@@ -88,7 +104,8 @@ func loadAndSaveConfig(cmd *cli.Command) (Config, string) {
 	} else {
 		config = *NewConfig(
 			cmd.String("docker-bin"),
-			cmd.String("dir"),
+			dir,
+			cmd.String("arch"),
 		)
 		write = true
 	}
@@ -96,7 +113,10 @@ func loadAndSaveConfig(cmd *cli.Command) (Config, string) {
 	if cmd.IsSet("docker-bin") && config.updateDockerBin(cmd.String("docker-bin")) {
 		write = true
 	}
-	if cmd.IsSet("dir") && config.updateDir(cmd.String("dir")) {
+	if cmd.IsSet("dir") && config.updateDir(dir) {
+		write = true
+	}
+	if cmd.IsSet("arch") && config.updateDefaultArch(cmd.String("arch")) {
 		write = true
 	}
 	if cmd.IsSet("stock") && config.updateStockDir(cmd.String("stock")) {
@@ -124,7 +144,7 @@ func loadConfig(cmd *cli.Command) (Config, string) {
 	var err error
 	file := searchConfigFiles(cmd.StringSlice("config"))
 	if !isFile(file) {
-		config = *NewConfig("docker", "")
+		config = *NewConfig("docker", "", getCPUArch())
 		return config, ""
 	}
 	config, err = readConfig(file)
@@ -138,6 +158,9 @@ func loadConfig(cmd *cli.Command) (Config, string) {
 	}
 	if cmd.IsSet("dir") {
 		config.updateDir(cmd.String("dir"))
+	}
+	if cmd.IsSet("arch") {
+		config.updateDefaultArch(cmd.String("arch"))
 	}
 	if config.StockDir == "" || cmd.IsSet("stock") {
 		config.updateStockDir(cmd.String("stock"))
@@ -161,7 +184,13 @@ func searchConfigFiles(files []string) string {
 	if final == "" {
 		final = files[0]
 	}
-	return final
+	absfinal, err := filepath.Abs(final)
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+
+	return absfinal
 }
 
 func anonymizeWd(path string, abs bool) string {
@@ -198,14 +227,13 @@ func anonymizeHomeDir(path string, abs bool) string {
 func anonymizeConfigFile(file string, abs bool) string {
 	// check config file is in the global config file directory or not
 	conf_dir := getGlobalConfigFileDir()
-	_, err := filepath.Rel(file, conf_dir)
-	if !abs && err == nil {
+	if !abs && strings.HasPrefix(file, conf_dir) {
 		return filepath.Join(getGlobalConfigFileDirAlias(), "gdocker", strings.TrimPrefix(file, conf_dir))
 	}
 
 	// check config file is in the working direcory or not
 	wd := getWd()
-	_, err = filepath.Rel(file, wd)
+	_, err := filepath.Rel(file, wd)
 	if !abs && err == nil {
 		return filepath.Join(".", strings.TrimPrefix(file, wd))
 	}
