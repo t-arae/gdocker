@@ -239,7 +239,7 @@ func cmdDevMakeImageDir() *cli.Command {
 			FLAG_NAME,
 			FLAG_TAGS,
 			FLAG_RESOURCES,
-			FLAG_CONFIG_GLOBAL,
+			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
 			FLAG_DRYRUN,
 		},
