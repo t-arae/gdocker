@@ -17,10 +17,10 @@ var (
 	names. The command can be run in a dry-run mode to preview actions before run.
 
 	Examples)
-	#> gdocker clean --dir docker_images/arm ubuntu_a
-	#> gdocker clean --dir docker_images/arm ubuntu_a:*
-	#> gdocker clean --dir docker_images/arm --list image_list.txt
-	#> gdocker clean --dir docker_images/arm --all -n`
+	#> gdocker clean ubuntu_a
+	#> gdocker clean ubuntu_a:*
+	#> gdocker clean --list image_list.txt
+	#> gdocker clean --all -n`
 )
 
 func cmdClean() *cli.Command {
@@ -37,6 +37,7 @@ func cmdClean() *cli.Command {
 			FLAG_LIST,
 			FLAG_MAKEFLAG,
 			FLAG_ALL,
+			FLAG_SHOW_ABSPATH,
 			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
 			FLAG_DRYRUN,
@@ -45,7 +46,7 @@ func cmdClean() *cli.Command {
 			logger := getLogger("clean", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadConfig(cmd)
+			config, _ := loadConfig(cmd)
 			docker_bin := config.DockerBin
 			dir := config.Dir
 
@@ -83,7 +84,7 @@ func cmdClean() *cli.Command {
 						continue
 					}
 
-					args := ibds.ibds[idx].BuildCleanInstruction(image.Tag)
+					args := ibds.ibds[idx].BuildCleanInstruction(image.Tag, config.ShowAbspath)
 					args = append(args, flags...)
 					fmt.Println("make", strings.Join(args, " "))
 					if !cmd.Bool("dry-run") {

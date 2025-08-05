@@ -41,8 +41,8 @@ var (
 	#> gdocker images --dir docker_images/arm
 
 	(bellow examples needs "csvtk" to run.)
-	#> gdocker images --dir docker_images/arm | csvtk pretty -t
-	#> gdocker images --dir docker_images/arm -e -b | csvtk pretty -t`
+	#> gdocker images
+	#> gdocker images -e -b | csvtk pretty -t`
 )
 
 func cmdImages() *cli.Command {
@@ -59,13 +59,14 @@ func cmdImages() *cli.Command {
 			FLAG_BUILT_ONLY,
 			FLAG_EXIST_ONLY,
 			FLAG_CONFIG_DEFAULT,
+			FLAG_SHOW_ABSPATH,
 			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := getLogger("images", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadConfig(cmd)
+			config, _ := loadConfig(cmd)
 			docker_bin := config.DockerBin
 			dir := config.Dir
 
@@ -106,7 +107,7 @@ func cmdImages() *cli.Command {
 					img.String(),
 					fmt.Sprintf("%t", built),
 					fmt.Sprintf("%t", exists),
-					filepath.Join(dir),
+					anonymizeWd(filepath.Join(dir), config.ShowAbspath),
 				})
 			}
 

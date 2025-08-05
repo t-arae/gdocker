@@ -191,13 +191,14 @@ func (ibd *ImageBuildDir) Directory() string {
 }
 
 // Returns a slice of string to remove docker images in the directory
-func (ibd *ImageBuildDir) BuildCleanInstruction(tag string) []string {
-	return []string{"-C", ibd.Directory(), fmt.Sprintf("clean-%s", tag)}
+func (ibd *ImageBuildDir) BuildCleanInstruction(tag string, anno bool) []string {
+	return []string{"-C", anonymizeWd(ibd.Directory(), anno), fmt.Sprintf("clean-%s", tag)}
 }
 
 // Returns a slice of string to build the docker image specified by the tag
-func (ibd *ImageBuildDir) BuildMakeInstruction(tag string) []string {
-	return []string{"-C", ibd.Directory(), fmt.Sprintf("cache/%s.log", tag)}
+func (ibd *ImageBuildDir) BuildMakeInstruction(tag string, anno bool) []string {
+	//return []string{"-C", ibd.Directory(), fmt.Sprintf("cache/%s.log", tag)}
+	return []string{"-C", anonymizeWd(ibd.Directory(), anno), fmt.Sprintf("cache/%s.log", tag)}
 }
 
 // Returns a slice of string to tag the docker image with new tag

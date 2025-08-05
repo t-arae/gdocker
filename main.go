@@ -53,6 +53,7 @@ func cmdMain() *cli.Command {
 		cmdImages(),
 		cmdRun(),
 		cmdRunWorkingDirectory(),
+		cmdConfig(),
 		cmdDev(),
 	}
 	return cmd

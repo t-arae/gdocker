@@ -18,9 +18,9 @@ var (
 	names. The command can be run in a dry-run mode to preview actions before run.
 
 	Examples)
-	#> gdocker build --dir docker_images ubuntu_a
-	#> gdocker build --dir docker_images --list image_list.txt
-	#> gdocker build --dir docker_images -f "DOCKER_BUILD_FLAG=--platform linux/amd64" samtools_x`
+	#> gdocker build ubuntu_a
+	#> gdocker build --list image_list.txt
+	#> gdocker build -f "DOCKER_BUILD_FLAG=--platform linux/amd64" samtools_x`
 )
 
 func cmdBuild() *cli.Command {
@@ -39,6 +39,7 @@ func cmdBuild() *cli.Command {
 			FLAG_TAG,
 			FLAG_ALL,
 			FLAG_ALL_LATEST,
+			FLAG_SHOW_ABSPATH,
 			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
 			FLAG_DRYRUN,
@@ -47,7 +48,7 @@ func cmdBuild() *cli.Command {
 			logger := getLogger("build", getLogLevel(cmd.Int("verbose")))
 			slog.SetDefault(logger)
 
-			config := loadConfig(cmd)
+			config, _ := loadConfig(cmd)
 			docker_bin := config.DockerBin
 			dir := config.Dir
 
@@ -86,15 +87,15 @@ func cmdBuild() *cli.Command {
 				}
 			}
 
-			type tmplData struct {
-				GFM  bool
-				Deps []Dependency
-			}
-			tmpl := NewTemplates(TMPL_MERMAID, tmplData{
-				cmd.Bool("gfm"),
-				deps_sub,
-			})
-			tmpl.writeTemplates("stdout", false)
+			//type tmplData struct {
+			//	GFM  bool
+			//	Deps []Dependency
+			//}
+			//tmpl := NewTemplates(TMPL_MERMAID, tmplData{
+			//	cmd.Bool("gfm"),
+			//	deps_sub,
+			//})
+			//tmpl.writeTemplates("stdout", false)
 
 			for _, image := range solved {
 				if image.IsRoot {
@@ -102,7 +103,7 @@ func cmdBuild() *cli.Command {
 				}
 				ibd := ibds.ibds[ibds.mapNameTag[image.String()]]
 
-				args := ibd.BuildMakeInstruction(image.Tag)
+				args := ibd.BuildMakeInstruction(image.Tag, config.ShowAbspath)
 				if docker_bin != "docker" {
 					args = append(args, fmt.Sprintf("DOCKER_BIN=%s", docker_bin))
 				}
