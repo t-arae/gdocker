@@ -285,7 +285,7 @@ func cmdDevMakeImageDir() *cli.Command {
 						tm.AddTemplate(TEMPLATE_RESOURCE, dataMakeResource{temp_tag, resource, commands})
 						dataMakeResources = append(dataMakeResources, dataMakeResource{temp_tag, resource, commands})
 						i := slices.Index(tag_list, temp_tag)
-						oldvers[i].Resources = append(oldvers[i].Resources, resource)
+						oldvers[i].Resources = append(oldvers[i].Resources, filepath.Join(temp_tag, "$(DIR_OUT)", resource))
 					} else {
 						slog.Error("invalid stdin")
 						os.Exit(1)
