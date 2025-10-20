@@ -154,6 +154,12 @@ var (
 		Value:   false,
 		Usage:   "print for GitHub Fravored Markdown",
 	}
+	FLAG_WEB = &cli.BoolFlag{
+		Name:    "web",
+		Aliases: []string{"w"},
+		Value:   false,
+		Usage:   "serve web page",
+	}
 
 	// flags for build command
 	FLAG_LIST = &cli.StringFlag{

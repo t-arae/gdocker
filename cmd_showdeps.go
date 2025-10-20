@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"html/template"
+	"log"
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/urfave/cli/v3"
@@ -33,6 +36,20 @@ flowchart TD
     {{< . >}}{{< end >}}
 {{< if .GFM >}}` + "```" + `{{< end >}}
 `
+	TMPL_MERMAID_WEB = `
+<script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'</script>
+
+<pre class="mermaid">
+	flowchart TD
+
+    classDef root fill:#8BA7D5,color:#000000
+    classDef latest fill:#E38692,color:#000000
+    classDef latestimg fill:#F6D580,color:#000000
+    classDef old fill:#81D674,color:#000000
+	{{ range . }}
+    {{ . }}{{ end }}
+</pre>
+`
 )
 
 func cmdShowDeps() *cli.Command {
@@ -49,6 +66,7 @@ func cmdShowDeps() *cli.Command {
 			FLAG_ALL,
 			FLAG_ALL_LATEST,
 			FLAG_GFM,
+			FLAG_WEB,
 			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
 		},
@@ -102,6 +120,12 @@ func cmdShowDeps() *cli.Command {
 				deps_sub,
 			})
 			tmpl.writeTemplates("stdout", false)
+
+			if cmd.Bool("web") {
+				http.HandleFunc("/", viewHandler(deps_sub))
+				slog.Warn("Server started url http://localhost:8080/")
+				log.Fatal(http.ListenAndServe("localhost:8080", nil))
+			}
 			return nil
 		},
 	}
@@ -125,4 +149,20 @@ func printNode(di DockerImage) string {
 		return fmt.Sprintf(`%s("%s"):::latestimg`, di.String(), di.String())
 	}
 	return fmt.Sprintf(`%s("%s"):::old`, di.String(), di.String())
+}
+
+func viewHandler(deps any) func(w http.ResponseWriter, r *http.Request) {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.New("mermaid").Parse(TMPL_MERMAID_WEB)
+		if err != nil {
+			http.Error(w, "template parse error", http.StatusInternalServerError)
+			return
+		}
+
+		if err := tmpl.Execute(w, deps); err != nil {
+			http.Error(w, "template execute error", http.StatusInternalServerError)
+			return
+		}
+	}
+	return f
 }
