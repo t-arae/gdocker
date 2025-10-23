@@ -36,7 +36,7 @@ func cmdBuild() *cli.Command {
 			FLAG_DIRECTORY,
 			FLAG_LIST,
 			FLAG_MAKEFLAG,
-			FLAG_TAG,
+			FLAG_BUILD_TAG,
 			FLAG_ALL,
 			FLAG_ALL_LATEST,
 			FLAG_SHOW_ABSPATH,

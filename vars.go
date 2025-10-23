@@ -193,7 +193,7 @@ var (
 		Usage:    "image name",
 		Required: true,
 	}
-	FLAG_TAGS = &cli.StringFlag{
+	FLAG_BUILD_TAGS = &cli.StringFlag{
 		Name:  "tags",
 		Usage: "image tags",
 	}
