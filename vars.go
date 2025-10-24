@@ -154,6 +154,12 @@ var (
 		Value:   false,
 		Usage:   "print for GitHub Fravored Markdown",
 	}
+	FLAG_WEB = &cli.BoolFlag{
+		Name:    "web",
+		Aliases: []string{"w"},
+		Value:   false,
+		Usage:   "serve web page",
+	}
 
 	// flags for build command
 	FLAG_LIST = &cli.StringFlag{
@@ -167,7 +173,14 @@ var (
 		Usage:    "a string (`STR`) for setting Make variables",
 		Required: false,
 	}
-	FLAG_TAG = &cli.StringFlag{
+	FLAG_PROJ_TAG = &cli.StringFlag{
+		Name:     "proj-tag",
+		Aliases:  []string{"t"},
+		Value:    "latest",
+		Usage:    "a string (`TAG`) to set project specific tag",
+		Required: false,
+	}
+	FLAG_BUILD_TAG = &cli.StringFlag{
 		Name:     "tag",
 		Aliases:  []string{"t"},
 		Value:    "latest",
@@ -187,7 +200,7 @@ var (
 		Usage:    "image name",
 		Required: true,
 	}
-	FLAG_TAGS = &cli.StringFlag{
+	FLAG_BUILD_TAGS = &cli.StringFlag{
 		Name:  "tags",
 		Usage: "image tags",
 	}

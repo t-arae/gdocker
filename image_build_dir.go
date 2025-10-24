@@ -209,6 +209,12 @@ func (ibd *ImageBuildDir) BuildTaggingInstruction(tag string, new_tag string) ([
 	return []string{"tag", fmt.Sprintf("%s:%s", ibd.dirImage, tag), fmt.Sprintf("%s:%s", ibd.dirImage, new_tag)}, true
 }
 
+// Returns a slice of string to remove the docker image.
+// Note: This function does not check the existence of image.
+func (ibd *ImageBuildDir) BuildRemoveImage(tag string) []string {
+	return []string{"rmi", fmt.Sprintf("%s:%s", ibd.dirImage, tag)}
+}
+
 // This contains a slice of ImageBuildDir and a map to search index from image name
 type ImageBuildDirs struct {
 	ibds       []ImageBuildDir

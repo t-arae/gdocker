@@ -21,6 +21,7 @@ type Config struct {
 	DefaultArch string `json:"arch"`
 	StockDir    string `json:"stock_dir,omitempty"` // Optional field for stock directory
 	ShowAbspath bool   `json:"show_abspath,omitempty"`
+	ProjectTag  string `json:"project_tag,omitempty"`
 }
 
 // NewConfig creates a new Config instance.
@@ -81,6 +82,15 @@ func (c *Config) updateShowAbspath(show bool) bool {
 	return false
 }
 
+func (c *Config) updateProjectTag(tag string) bool {
+	if c.ProjectTag != tag {
+		slog.Info(fmt.Sprintf("overwrite `project tag`: '%v' with '%v'", c.ProjectTag, tag))
+		c.ProjectTag = tag
+		return true
+	}
+	return false
+}
+
 // loadAndSaveConfig loads the configuration from a file or creates a new one if it doesn't exist.
 // It updates the configuration with command line arguments if they are set.
 // If the configuration is updated, it writes the new configuration to the file.
@@ -125,6 +135,9 @@ func loadAndSaveConfig(cmd *cli.Command) (Config, string) {
 	if config.updateShowAbspath(cmd.Bool("show-abspath")) {
 		write = true
 	}
+	if cmd.IsSet("proj-tag") && config.updateProjectTag(cmd.String("proj-tag")) {
+		write = true
+	}
 	if write {
 		if config.DockerBin == "" || config.Dir == "" {
 			slog.Error("docker-bin and dir must be set")
@@ -167,6 +180,9 @@ func loadConfig(cmd *cli.Command) (Config, string) {
 	}
 	if cmd.IsSet("show-abspath") {
 		config.updateShowAbspath(cmd.Bool("show-abspath"))
+	}
+	if cmd.IsSet("proj-tag") {
+		config.updateProjectTag(cmd.String("proj-tag"))
 	}
 
 	return config, file
