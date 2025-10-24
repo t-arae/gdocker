@@ -180,6 +180,12 @@ var (
 		Usage:    "a string (`TAG`) to set project specific tag",
 		Required: false,
 	}
+	FLAG_UNTAG = &cli.BoolFlag{
+		Name:    "untag",
+		Aliases: []string{"u"},
+		Usage:   "if specified, untags images",
+		Value:   false,
+	}
 	FLAG_BUILD_TAG = &cli.StringFlag{
 		Name:     "tag",
 		Aliases:  []string{"t"},
