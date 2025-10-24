@@ -173,7 +173,14 @@ var (
 		Usage:    "a string (`STR`) for setting Make variables",
 		Required: false,
 	}
-	FLAG_TAG = &cli.StringFlag{
+	FLAG_PROJ_TAG = &cli.StringFlag{
+		Name:     "proj-tag",
+		Aliases:  []string{"t"},
+		Value:    "latest",
+		Usage:    "a string (`TAG`) to set project specific tag",
+		Required: false,
+	}
+	FLAG_BUILD_TAG = &cli.StringFlag{
 		Name:     "tag",
 		Aliases:  []string{"t"},
 		Value:    "latest",

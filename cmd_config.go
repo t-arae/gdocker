@@ -55,7 +55,8 @@ Docker binary         : '%s'
 Docker image directory: '%s'
 Default architecture  : '%s'
 Show absolute path    :  %v
-`, anonymizeConfigFile(file, c.ShowAbspath), c.DockerBin, anonymizeWd(c.Dir, c.ShowAbspath), c.DefaultArch, c.ShowAbspath)
+Project tag           : '%s'
+`, anonymizeConfigFile(file, c.ShowAbspath), c.DockerBin, anonymizeWd(c.Dir, c.ShowAbspath), c.DefaultArch, c.ShowAbspath, c.ProjectTag)
 
 			return nil
 		},
@@ -86,6 +87,7 @@ func cmdConfigWrite() *cli.Command {
 			FLAG_DIRECTORY,
 			FLAG_ARCH,
 			FLAG_SHOW_ABSPATH,
+			FLAG_PROJ_TAG,
 			FLAG_CONFIG_DEFAULT,
 			FLAG_VERBOSE,
 			FLAG_DRYRUN,
