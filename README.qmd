@@ -6,15 +6,14 @@ embed-resources: true
 
 # gdocker
 
-`gdocker` is a command-line tool written in Go for managing and building Docker images, especially for bioinformatics tools.
-It provides commands to show image dependencies, build images with dependency resolution, run containers with preset options, and manage image directories.
-The tool supports features like visualizing dependency graphs, exporting build instructions, and preparing templates for new images.
+`gdocker` is a command-line tool written in Go for managing and building Docker images.
+It provides commands to show image dependencies, build images with dependency resolution,
+run containers with preset options, and manage image directories.
 
 ## Install
 
 Before installing `gdocker`, ensure the following are installed on your system:
 
-- git
 - Go
 - make
 - docker
@@ -23,7 +22,16 @@ To install `gdocker`, run the following command in terminal:
 
 ```{bash}
 #| eval: false
-go install github.com/t-arae/gdocker@latest
+go install -trimpath -ldflags='-s -w' github.com/t-arae/gdocker@latest
+```
+
+If the `$GOPATH/bin` is not in the `$PATH`, add it.
+
+```{bash}
+#| eval: false
+# Add this line to your ~/.profile
+# Before adding, check your GOPATH by `go env` and replace below with it.
+export PATH=$PATH:$GOPATH/bin
 ```
 
 ## main commmand 
