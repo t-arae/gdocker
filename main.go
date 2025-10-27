@@ -16,7 +16,7 @@ import (
 var (
 	APP_NAME    = "gdocker"
 	APP_USAGE   = "personal docker wrapper tool written in Go"
-	APP_VERSION = "0.0.4"
+	APP_VERSION = "0.0.6"
 )
 
 func cmdMain() *cli.Command {
