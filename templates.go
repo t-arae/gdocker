@@ -89,9 +89,10 @@ func NewTemplates(t string, data any) *Templates {
 	}
 }
 
-func (ts *Templates) AddTemplate(t string, data any) {
+func (ts *Templates) AddTemplate(t string, data any) *Templates {
 	ts.templates = append(ts.templates, t)
 	ts.tmplsdata = append(ts.tmplsdata, data)
+	return ts
 }
 
 func (ts *Templates) writeTemplates(file string, box bool) {

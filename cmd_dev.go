@@ -111,19 +111,36 @@ func cmdDevInit() *cli.Command {
 			outf1, outf2 = filepath.Join(dir1, "Dockerfile"), filepath.Join(dir2, "Dockerfile")
 			slog.Info("creating Dockerfiles:")
 			NewTemplates(
+				TMPL_DOCKERFILE_COMMON_HEADER,
+				map[string]string{},
+			).AddTemplate(
 				TMPL_UBUNTU_DOCKERFILE,
 				map[string]string{
 					"Tag":      "22.04",
 					"Platform": platform,
 					"TimeZone": timezone,
 				},
+			).AddTemplate(
+				TMPL_DOCKERFILE_COMMON_FOOTER,
+				map[string]string{
+					"GdockerVersion": APP_VERSION,
+				},
 			).writeTemplates(outf1, box)
+
 			NewTemplates(
+				TMPL_DOCKERFILE_COMMON_HEADER,
+				map[string]string{},
+			).AddTemplate(
 				TMPL_UBUNTU_DOCKERFILE,
 				map[string]string{
 					"Tag":      "20.04",
 					"Platform": platform,
 					"TimeZone": timezone,
+				},
+			).AddTemplate(
+				TMPL_DOCKERFILE_COMMON_FOOTER,
+				map[string]string{
+					"GdockerVersion": APP_VERSION,
 				},
 			).writeTemplates(outf2, box)
 
@@ -134,8 +151,9 @@ func cmdDevInit() *cli.Command {
 			tms := NewTemplates(
 				TMPL_MAKEFILE,
 				map[string]any{
-					"Name": name,
-					"Tags": []string{"22.04", "20.04"},
+					"GdockerVersion": APP_VERSION,
+					"Name":           name,
+					"Tags":           []string{"22.04", "20.04"},
 				},
 			)
 

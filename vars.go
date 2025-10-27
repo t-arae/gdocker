@@ -39,7 +39,8 @@ $(DIR_OUT)/{{< .Tag >}}.log: $(call image_out,%) : $(DIR_OUT){{< range .Resource
 	$(DOCKER_BUILD) -t $(IMG_NAME):$* $(DIR_MAKEFILE)/$*/
 	$(OUTPUT_IMAGE)
 `
-	TMPL_MAKEFILE = `DOCKER_BIN = docker
+	TMPL_MAKEFILE = `# gdocker_version=v{{< .GdockerVersion >}}
+DOCKER_BIN = docker
 DOCKER_BUILD_FLAG = 
 DOCKER_BUILD = $(DOCKER_BIN) build $(DOCKER_BUILD_FLAG)
 OUTPUT_IMAGE = touch $@
@@ -68,6 +69,14 @@ $(DIR_OUT):
 	mkdir -p $@
 `
 
+	TMPL_DOCKERFILE_COMMON_HEADER = `# syntax=docker/dockerfile:1
+`
+
+	TMPL_DOCKERFILE_COMMON_FOOTER = `LABEL com.gdocker.version=v{{< .GdockerVersion >}}
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+`
+
 	TMPL_UBUNTU_DOCKERFILE = `FROM --platform={{< .Platform >}} ubuntu:{{< .Tag >}}
 
 ENV TZ={{< .TimeZone >}}
@@ -82,7 +91,6 @@ RUN apt-get update && apt-get install -y \
         && chmod +x /usr/local/bin/entrypoint.sh
 WORKDIR /data
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 `
 
 	TMPL_UBUNTU_ENTRYPOINT = `#!/bin/bash
