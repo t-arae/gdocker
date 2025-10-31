@@ -68,30 +68,6 @@ $(DIR_OUT):
 	mkdir -p $@
 `
 
-	TMPL_DOCKERFILE_COMMON_HEADER = `# syntax=docker/dockerfile:1
-`
-
-	TMPL_DOCKERFILE_COMMON_FOOTER = `LABEL com.gdocker.version=v{{< .GdockerVersion >}}
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-`
-
-	TMPL_UBUNTU_DOCKERFILE = `FROM --platform={{< .Platform >}} ubuntu:{{< .Tag >}}
-
-ENV TZ={{< .TimeZone >}}
-VOLUME ["/data", "/config", "/share"]
-COPY docker_prompt.sh /config/docker_prompt.sh
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY cache/rush /usr/local/bin/rush
-RUN apt-get update && apt-get install -y \
-        gosu zstd tzdata ca-certificates openssl \
-        && apt-get clean \
-        && rm -rf /var/lib/apt/list/* \
-        && chmod +x /usr/local/bin/entrypoint.sh
-WORKDIR /data
-
-`
-
 	TMPL_UBUNTU_ENTRYPOINT = `#!/bin/bash
 
 USER_ID=${LOCAL_UID:-9001}
@@ -108,7 +84,6 @@ groupmod -g $GROUP_ID -o user
 export HOME=/home/user
 cat /config/docker_prompt.sh >> ${HOME}/.bashrc
 exec /usr/sbin/gosu user "$@"
-
 `
 
 	TMPL_UBUNTU_PROMPT = `

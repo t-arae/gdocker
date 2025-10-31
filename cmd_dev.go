@@ -39,6 +39,45 @@ var (
 	#> gdocker dev init --arch x86_64 --dry-run`
 )
 
+func ubuntuDockerfile(platform, tag, tz string) *Dockerfile {
+	d := NewDockerfile(true)
+	d.AddStage(Stage{})
+	d.LastStage().AddInstruction(&FROM_INST{platform, "ubuntu", tag, ""})
+	d.LastStage().AddInstruction(&BLANK{})
+	d.LastStage().AddInstruction(&ENV_INST{[]string{"TZ"}, []string{tz}})
+	d.LastStage().AddInstruction(&VOLUMNE_INST{[]string{"/data", "/config", "/share"}})
+	d.LastStage().AddInstruction(&COPY_INST{
+		"shell",
+		[]string{},
+		[]string{"docker_prompt.sh"},
+		"/config/docker_prompt.sh",
+	})
+	d.LastStage().AddInstruction(&COPY_INST{
+		"shell",
+		[]string{"--chmod=777"},
+		[]string{"entry_point.sh"},
+		"/usr/local/bin/entrypoint.sh",
+	})
+	d.LastStage().AddInstruction(&COPY_INST{
+		"shell",
+		[]string{},
+		[]string{"cache/rush"},
+		"/usr/local/bin/rush",
+	})
+	d.LastStage().AddInstruction(&APT_INSTALL{
+		"shell",
+		[]string{
+			"gosu", "\\",
+			"zstd", "\\",
+			"tzdata", "\\",
+			"ca-certificates", "\\",
+			"openssl", "\\",
+		},
+		"&&",
+	})
+	return &d
+}
+
 func cmdDevInit() *cli.Command {
 	return &cli.Command{
 		Name:               "init",
@@ -110,39 +149,8 @@ func cmdDevInit() *cli.Command {
 			timezone := cmd.String("timezone")
 			outf1, outf2 = filepath.Join(dir1, "Dockerfile"), filepath.Join(dir2, "Dockerfile")
 			slog.Info("creating Dockerfiles:")
-			NewTemplates(
-				TMPL_DOCKERFILE_COMMON_HEADER,
-				map[string]string{},
-			).AddTemplate(
-				TMPL_UBUNTU_DOCKERFILE,
-				map[string]string{
-					"Tag":      "22.04",
-					"Platform": platform,
-					"TimeZone": timezone,
-				},
-			).AddTemplate(
-				TMPL_DOCKERFILE_COMMON_FOOTER,
-				map[string]string{
-					"GdockerVersion": APP_VERSION,
-				},
-			).writeTemplates(outf1, box)
-
-			NewTemplates(
-				TMPL_DOCKERFILE_COMMON_HEADER,
-				map[string]string{},
-			).AddTemplate(
-				TMPL_UBUNTU_DOCKERFILE,
-				map[string]string{
-					"Tag":      "20.04",
-					"Platform": platform,
-					"TimeZone": timezone,
-				},
-			).AddTemplate(
-				TMPL_DOCKERFILE_COMMON_FOOTER,
-				map[string]string{
-					"GdockerVersion": APP_VERSION,
-				},
-			).writeTemplates(outf2, box)
+			ubuntuDockerfile(platform, "22.04", timezone).WriteTo(outf1, box)
+			ubuntuDockerfile(platform, "20.04", timezone).WriteTo(outf2, box)
 
 			// Makefile
 			outf = filepath.Join(dir, arch, name, "Makefile")
