@@ -48,7 +48,7 @@ func cmdTag() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("tag", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("tag", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)
@@ -67,10 +67,7 @@ func cmdTag() *cli.Command {
 			// load input image names from -l and args
 			inputs := checkImageNamesInput(cmd, ibds)
 
-			existsImages := make(map[string]struct{})
-			for _, eimg := range getExistImages(docker_bin) {
-				existsImages[eimg.String()] = struct{}{}
-			}
+			eimages := getExistImages(docker_bin)
 
 			finished := make(map[string]struct{})
 			for _, input := range inputs {
@@ -85,7 +82,7 @@ func cmdTag() *cli.Command {
 						continue
 					}
 
-					if _, isbuilt := existsImages[image.String()]; !isbuilt {
+					if !eimages.checkExist(image) {
 						slog.Warn(fmt.Sprintf("%v is not built. skipped.", image))
 						continue
 					}

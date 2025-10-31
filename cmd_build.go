@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"slices"
+	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -20,7 +20,7 @@ var (
 	Examples)
 	#> gdocker build ubuntu_a
 	#> gdocker build --list image_list.txt
-	#> gdocker build -f "DOCKER_BUILD_FLAG=--platform linux/amd64" samtools_x`
+	#> gdocker build -b "--platform linux/amd64" samtools_x`
 )
 
 func cmdBuild() *cli.Command {
@@ -36,7 +36,7 @@ func cmdBuild() *cli.Command {
 			FLAG_DIRECTORY,
 			FLAG_LIST,
 			FLAG_MAKEFLAG,
-			FLAG_BUILD_TAG,
+			FLAG_BUILDFLAG,
 			FLAG_ALL,
 			FLAG_ALL_LATEST,
 			FLAG_SHOW_ABSPATH,
@@ -45,16 +45,12 @@ func cmdBuild() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("build", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("build", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)
-			docker_bin := config.DockerBin
-			dir := config.Dir
 
-			common_tag := cmd.String("tag")
-
-			ibds := searchImageBuildDir(dir, "archive")
+			ibds := searchImageBuildDir(config.Dir, "archive")
 			ibds.makeMap()
 			deps := ibds.Dependencies()
 
@@ -73,56 +69,59 @@ func cmdBuild() *cli.Command {
 				}
 				images = append(images, img)
 			}
-			solved, roots := checkDependency(images, deps)
+			solved, _ := checkDependency(images, deps)
 
-			var deps_sub []Dependency
-			for _, img := range solved {
-				for _, dep := range deps {
-					if img.String() == dep.From.String() {
-						if _, ok := roots[dep.To.String()]; ok {
-							dep.To.IsRoot = true
-						}
-						deps_sub = append(deps_sub, dep)
-					}
-				}
-			}
-
-			//type tmplData struct {
-			//	GFM  bool
-			//	Deps []Dependency
-			//}
-			//tmpl := NewTemplates(TMPL_MERMAID, tmplData{
-			//	cmd.Bool("gfm"),
-			//	deps_sub,
-			//})
-			//tmpl.writeTemplates("stdout", false)
+			eimages := getExistImages(config.DockerBin)
 
 			for _, image := range solved {
 				if image.IsRoot {
 					continue
 				}
+				if eimages.checkExist(image) {
+					slog.Warn(fmt.Sprintf("%v is built. skipped.", image))
+					continue
+				}
+
 				ibd := ibds.ibds[ibds.mapNameTag[image.String()]]
 
-				args := ibd.BuildMakeInstruction(image.Tag, config.ShowAbspath)
-				if docker_bin != "docker" {
-					args = append(args, fmt.Sprintf("DOCKER_BIN=%s", docker_bin))
+				version_ok, _ := ibd.MakeVersion()
+				var args []string
+				var args2 []string
+				if !version_ok {
+					args = beforeV0_0_6(image, ibd, config, cmd)
+				} else {
+					args, args2 = ibd.BuildMakeInstruction(image.Tag, config.ShowAbspath)
+					args2 = append([]string{"build", cmd.String("build-flag")}, args2...)
 				}
-				args = append(args, cmd.StringSlice("flag")...)
+
 				fmt.Println("make", strings.Join(args, " "))
 				if !cmd.Bool("dry-run") {
 					execCommand("make", args)
 				}
-				if slices.Index(Strings(images), image.String()) != -1 {
-					args, ok := ibd.BuildTaggingInstruction(image.Tag, common_tag)
-					if ok {
-						fmt.Print(docker_bin, strings.Join(args, " "))
-					}
-					if !cmd.Bool("dry-run") && ok {
-						execCommand(docker_bin, args)
+
+				if version_ok && image.Tag != "latest" {
+					fmt.Println(config.DockerBin, strings.Join(args2, " "))
+					if !cmd.Bool("dry-run") {
+						execCommand(config.DockerBin, args2)
 					}
 				}
 			}
 			return nil
 		},
 	}
+}
+
+func beforeV0_0_6(image DockerImage, ibd ImageBuildDir, config Config, cmd *cli.Command) (args []string) {
+	slog.Warn(fmt.Sprintf("'%s' has no version. update recommended.", anonymizeWd(filepath.Join(ibd.Directory(), "Makefile"), config.ShowAbspath)))
+	// Before gdocker v0.0.6, docker image building peformed by make commmand only
+	args = ibd.BuildMakeInstructionOld(image.Tag, config.ShowAbspath)
+	if config.DockerBin != "docker" {
+		args = append(args, fmt.Sprintf("DOCKER_BIN=%s", config.DockerBin))
+	}
+	// add flags for make command
+	args = append(args, cmd.StringSlice("flag")...)
+	// add flags for docker build command
+	// to distiguish <v0.0.6, and >=v0.0.6, labels will be added automatically
+	args = append(args, fmt.Sprintf("DOCKER_BUILD_FLAG=%s %s", "--label com.gdocker.version= --label com.gdocker.build-dir=", cmd.String("build-flag")))
+	return args
 }

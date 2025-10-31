@@ -195,10 +195,34 @@ func (ibd *ImageBuildDir) BuildCleanInstruction(tag string, anno bool) []string 
 	return []string{"-C", anonymizeWd(ibd.Directory(), anno), fmt.Sprintf("clean-%s", tag)}
 }
 
-// Returns a slice of string to build the docker image specified by the tag
-func (ibd *ImageBuildDir) BuildMakeInstruction(tag string, anno bool) []string {
-	//return []string{"-C", ibd.Directory(), fmt.Sprintf("cache/%s.log", tag)}
+func (ibd *ImageBuildDir) MakeVersion() (bool, string) {
+	mkfile := filepath.Join(ibd.Directory(), "Makefile")
+	version_string := findLines(mkfile, "# gdocker_version=")
+	if len(version_string) == 0 {
+		return false, ""
+	}
+	return true, version_string[0]
+}
+
+func (ibd *ImageBuildDir) BuildMakeInstructionOld(tag string, anno bool) []string {
 	return []string{"-C", anonymizeWd(ibd.Directory(), anno), fmt.Sprintf("cache/%s.log", tag)}
+}
+
+// Returns a slice of string to build the docker image specified by the tag
+func (ibd *ImageBuildDir) BuildMakeInstruction(tag string, anno bool) ([]string, []string) {
+	// for preparing requirements
+	// will be passed to make command
+	args := []string{"-C", anonymizeWd(ibd.Directory(), anno), fmt.Sprintf("cache/%s.log", tag)}
+	// for building dockerimage
+	// will be passed to docker build command
+	args2 := []string{
+		// add build-dir label during building image
+		// this directory path should be an absolute and not annonymized path
+		"--label", fmt.Sprintf("com.gdocker.build-dir=%s", filepath.Join(ibd.Directory(), tag)),
+		"-t", fmt.Sprintf("%s:%s", ibd.dirImage, tag),
+		filepath.Join(anonymizeWd(ibd.Directory(), anno), tag),
+	}
+	return args, args2
 }
 
 // Returns a slice of string to tag the docker image with new tag

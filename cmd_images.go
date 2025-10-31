@@ -63,7 +63,7 @@ func cmdImages() *cli.Command {
 			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("images", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("images", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)
@@ -73,13 +73,10 @@ func cmdImages() *cli.Command {
 			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()
 
-			imgs := getExistImages(docker_bin)
-			imgs_map := make(map[string]struct{})
-			for _, img := range imgs {
-				imgs_map[img.String()] = struct{}{}
-			}
+			eimgs := getExistImages(docker_bin)
+			imgs := eimgs.Images()
 			for _, iname := range ibds.ImageNames() {
-				if _, ok := imgs_map[iname]; !ok {
+				if !eimgs.checkExistByNames(iname) {
 					img, err := NewDockerImage(iname)
 					if err != nil {
 						slog.Error(err.Error())
@@ -92,7 +89,6 @@ func cmdImages() *cli.Command {
 			var records [][]string
 			for _, img := range imgs {
 				idx, exists := ibds.mapNameTag[img.String()]
-				_, built := imgs_map[img.String()]
 				var dir string
 				if exists {
 					if img.Tag == "latest" {
@@ -105,7 +101,7 @@ func cmdImages() *cli.Command {
 				}
 				records = append(records, []string{
 					img.String(),
-					fmt.Sprintf("%t", built),
+					fmt.Sprintf("%t", eimgs.checkExist(img)),
 					fmt.Sprintf("%t", exists),
 					anonymizeWd(filepath.Join(dir), config.ShowAbspath),
 				})
@@ -142,8 +138,10 @@ func cmdImages() *cli.Command {
 	}
 }
 
+type ExistImages map[string]struct{}
+
 // Get built docker images information
-func getExistImages(docker_path string) []DockerImage {
+func getExistImages(docker_path string) ExistImages {
 	out, err := exec.Command(docker_path, "images", "--format", "{{.Repository}}:{{.Tag}}").Output()
 	if err != nil {
 		slog.Error(err.Error())
@@ -160,7 +158,35 @@ func getExistImages(docker_path string) []DockerImage {
 		images = append(images, img)
 	}
 
-	return images
+	exists := make(map[string]struct{})
+	for _, eimg := range images {
+		exists[eimg.String()] = struct{}{}
+	}
+	return exists
+}
+
+func (e ExistImages) checkExist(image DockerImage) bool {
+	_, exist := e[image.String()]
+	return exist
+}
+
+func (e ExistImages) checkExistByNames(iname string) bool {
+	_, exist := e[iname]
+	return exist
+}
+
+func (e ExistImages) Images() []DockerImage {
+	var inames []string
+	for k := range e {
+		inames = append(inames, k)
+	}
+
+	var imgs []DockerImage
+	for _, v := range inames {
+		img, _ := NewDockerImage(v)
+		imgs = append(imgs, img)
+	}
+	return imgs
 }
 
 func writeCSV(cn []string, cols [][]string, wo io.Writer) {

@@ -36,10 +36,10 @@ OPTIONS:{{template "visibleFlagTemplate" .}}{{end}}
 `
 	TEMPLATE_OLDVER = `
 $(DIR_OUT)/{{< .Tag >}}.log: $(call image_out,%) : $(DIR_OUT){{< range .Resources >}} {{< . >}}{{< end >}}
-	$(DOCKER_BUILD) -t $(IMG_NAME):$* $(DIR_MAKEFILE)/$*/
 	$(OUTPUT_IMAGE)
 `
-	TMPL_MAKEFILE = `DOCKER_BIN = docker
+	TMPL_MAKEFILE = `# gdocker_version=v{{< .GdockerVersion >}}
+DOCKER_BIN = docker
 DOCKER_BUILD_FLAG = 
 DOCKER_BUILD = $(DOCKER_BIN) build $(DOCKER_BUILD_FLAG)
 OUTPUT_IMAGE = touch $@
@@ -68,23 +68,6 @@ $(DIR_OUT):
 	mkdir -p $@
 `
 
-	TMPL_UBUNTU_DOCKERFILE = `FROM --platform={{< .Platform >}} ubuntu:{{< .Tag >}}
-
-ENV TZ={{< .TimeZone >}}
-VOLUME ["/data", "/config", "/share"]
-COPY docker_prompt.sh /config/docker_prompt.sh
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY cache/rush /usr/local/bin/rush
-RUN apt-get update && apt-get install -y \
-        gosu zstd tzdata ca-certificates openssl \
-        && apt-get clean \
-        && rm -rf /var/lib/apt/list/* \
-        && chmod +x /usr/local/bin/entrypoint.sh
-WORKDIR /data
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-`
-
 	TMPL_UBUNTU_ENTRYPOINT = `#!/bin/bash
 
 USER_ID=${LOCAL_UID:-9001}
@@ -101,7 +84,6 @@ groupmod -g $GROUP_ID -o user
 export HOME=/home/user
 cat /config/docker_prompt.sh >> ${HOME}/.bashrc
 exec /usr/sbin/gosu user "$@"
-
 `
 
 	TMPL_UBUNTU_PROMPT = `
@@ -118,7 +100,7 @@ var (
 		DefaultText: anonymizeHomeDir(getDefaultDir(), false),
 		Value:       getDefaultDir(),
 	}
-	FLAG_VERBOSE = &cli.IntFlag{
+	FLAG_VERBOSE = &cli.Int64Flag{
 		Name:     "verbose",
 		Aliases:  []string{"V"},
 		Value:    1,
@@ -171,6 +153,12 @@ var (
 		Name:     "flag",
 		Aliases:  []string{"f"},
 		Usage:    "a string (`STR`) for setting Make variables",
+		Required: false,
+	}
+	FLAG_BUILDFLAG = &cli.StringFlag{
+		Name:     "build-flag",
+		Aliases:  []string{"b"},
+		Usage:    "a string (`STR`) for setting docker build",
 		Required: false,
 	}
 	FLAG_PROJ_TAG = &cli.StringFlag{

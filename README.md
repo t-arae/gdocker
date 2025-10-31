@@ -45,7 +45,7 @@ gdocker --help
        gdocker [global options] [command [command options]]
 
     VERSION:
-       0.0.4 (Docker version 28.3.2, build 578ccf6)
+       0.0.6 (Docker version 28.3.2, build 578ccf6)
 
     COMMANDS:
        showdeps  show docker image dependencies as mermaid flowchart
@@ -60,12 +60,12 @@ gdocker --help
        help, h   Shows a list of commands or help for one command
 
     GLOBAL OPTIONS:
-       --verbose value, -V value          set verbosity (0-2) (default: 1)
-       --docker-bin value                 path to the docker binary
-       --config value [ --config value ]  configuration file
-                                           (default: `$HOME/Library/Application Support/gdocker/gdocker_conf.json`, `./gdocker_conf.json`)
-       --help, -h                         show help
-       --version, -v                      print the version
+       --verbose int, -V int                set verbosity (0-2) (default: 1)
+       --docker-bin string                  path to the docker binary
+       --config string [ --config string ]  configuration file
+                                             (default: `$HOME/Library/Application Support/gdocker/gdocker_conf.json`, `./gdocker_conf.json`)
+       --help, -h                           show help
+       --version, -v                        print the version
 
 This will display a list of all supported subcommands and their
 descriptions. For help with a specific subcommand, use:
