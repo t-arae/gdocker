@@ -36,7 +36,6 @@ OPTIONS:{{template "visibleFlagTemplate" .}}{{end}}
 `
 	TEMPLATE_OLDVER = `
 $(DIR_OUT)/{{< .Tag >}}.log: $(call image_out,%) : $(DIR_OUT){{< range .Resources >}} {{< . >}}{{< end >}}
-	$(DOCKER_BUILD) -t $(IMG_NAME):$* $(DIR_MAKEFILE)/$*/
 	$(OUTPUT_IMAGE)
 `
 	TMPL_MAKEFILE = `# gdocker_version=v{{< .GdockerVersion >}}
@@ -179,6 +178,12 @@ var (
 		Name:     "flag",
 		Aliases:  []string{"f"},
 		Usage:    "a string (`STR`) for setting Make variables",
+		Required: false,
+	}
+	FLAG_BUILDFLAG = &cli.StringFlag{
+		Name:     "build-flag",
+		Aliases:  []string{"b"},
+		Usage:    "a string (`STR`) for setting docker build",
 		Required: false,
 	}
 	FLAG_PROJ_TAG = &cli.StringFlag{
