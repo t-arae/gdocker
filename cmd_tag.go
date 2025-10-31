@@ -48,7 +48,7 @@ func cmdTag() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("tag", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("tag", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)

@@ -63,7 +63,7 @@ func cmdImages() *cli.Command {
 			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("images", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("images", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)

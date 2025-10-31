@@ -71,7 +71,7 @@ func cmdShowDeps() *cli.Command {
 			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("showdeps", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("showdeps", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)

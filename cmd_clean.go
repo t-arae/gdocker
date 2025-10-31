@@ -43,7 +43,7 @@ func cmdClean() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("clean", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("clean", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)

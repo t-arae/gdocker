@@ -126,7 +126,7 @@ var (
 		DefaultText: anonymizeHomeDir(getDefaultDir(), false),
 		Value:       getDefaultDir(),
 	}
-	FLAG_VERBOSE = &cli.IntFlag{
+	FLAG_VERBOSE = &cli.Int64Flag{
 		Name:     "verbose",
 		Aliases:  []string{"V"},
 		Value:    1,

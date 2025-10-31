@@ -58,7 +58,7 @@ func cmdDevInit() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev init", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("dev init", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)
@@ -260,7 +260,7 @@ func cmdDevMakeImageDir() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev mkdir", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("dev mkdir", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)
@@ -415,7 +415,7 @@ func cmdDevSave() *cli.Command {
 			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev save", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("dev save", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)
@@ -498,7 +498,7 @@ func cmdCopyDockerfileStocks() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("dev cp", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("dev cp", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			config, _ := loadConfig(cmd)

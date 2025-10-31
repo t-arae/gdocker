@@ -46,7 +46,7 @@ func cmdConfigShow() *cli.Command {
 			FLAG_VERBOSE,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("config show", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("config show", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			c, file := loadConfig(cmd)
@@ -93,7 +93,7 @@ func cmdConfigWrite() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("config write", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("config write", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			loadAndSaveConfig(cmd)
@@ -126,7 +126,7 @@ func cmdConfigRemove() *cli.Command {
 			FLAG_DRYRUN,
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			logger := getLogger("config rm", getLogLevel(cmd.Int("verbose")))
+			logger := getLogger("config rm", getLogLevel(cmd.Int64("verbose")))
 			slog.SetDefault(logger)
 
 			c, file := loadConfig(cmd)

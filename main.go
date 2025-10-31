@@ -30,7 +30,7 @@ func cmdMain() *cli.Command {
 	}
 	cmd.Version = fmt.Sprintf("%s %s", APP_VERSION, getDockerVersion("docker"))
 	cmd.Before = func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-		logger := getLogger("main", getLogLevel(cmd.Int("verbose")))
+		logger := getLogger("main", getLogLevel(cmd.Int64("verbose")))
 		slog.SetDefault(logger)
 
 		config, err := readConfig(searchConfigFiles(cmd.StringSlice("config")))
