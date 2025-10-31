@@ -23,6 +23,7 @@ func cmdDev() *cli.Command {
 			cmdDevMakeImageDir(),
 			cmdDevSave(),
 			cmdCopyDockerfileStocks(),
+			cmdDockerfile(),
 		},
 	}
 }
@@ -550,6 +551,194 @@ func cmdCopyDockerfileStocks() *cli.Command {
 					copyFile(st.path, outf)
 				}
 			}
+
+			return nil
+		},
+	}
+}
+
+var (
+	FLAG_DF_INST = &cli.StringSliceFlag{
+		Name: "inst",
+		Usage: `specify instruction
+type        | (upper) short
+            | (lower) full  { (): choice, []: optional, ...: plural }
+ FROM       | from:<image>[:<tag>:<alias>]
+            | FROM:<platform>:<image>:<tag>:<alias>
+ RUN        | run:[<sep>]:<command>[<sep><command>...][:<op>]
+            | RUN:<form>:[<sep>]:<command>[<sep><command>...][:<op>]
+ ENTRYPOINT | ep:[<sep>]:<command>[<sep><command>...]
+            | ENTRYPOINT:<form>:[<sep>]:<command>[<sep><command>...]
+ COPY       | cp:[<sep>]:<src>[<sep><src>...]:<dest>[:<option>,<option>]
+            | COPY:<form>:<sep>:<option...>:<src...>:<dest>
+ WORKDIR    | wd:<directory>
+            | WORKDIR:<directory>
+ ENV        | env:<key=value>[:<key=value>...]
+            | ENV:<key=value>[:<key=value>...]
+ VOLUME     | vol:<volume>[:<volume>...]
+            | VOLUME:<volume>[:<volume>...]
+ LABEL      | lab:<key=value>[:<key=value>...]
+            | LABEL:<key=value>[:<key=value>...]
+other
+ apt install | apt:<pkg>[,<pkg>...]
+ blank line  | bl:
+ comment     | cm:<comment>
+ switch      | switch:[<sep>]
+ switchonce  | switchonce:[<sep>]
+`,
+		Required: true,
+	}
+)
+
+func cmdDockerfile() *cli.Command {
+	return &cli.Command{
+		Name:               "dockerfile",
+		Usage:              "test",
+		CustomHelpTemplate: TMPL_SUBCOMMAND_HELP,
+		ArgsUsage:          "[options]",
+		Description: `Compose a Dockerfile from instruction strings.
+	This command parses one or more --inst values and appends the corresponding instructions to a Dockerfile.
+	The output path is derived from --dir, --arch, --name, and --tag as {DIR}/{ARCH}/{NAME}/{TAG}/Dockerfile.
+	Use --dry-run to preview the result without writing a file. You can temporarily change the
+	argument separator by using the pseudo-instructions 'switch' and 'switchonce'.
+
+	Examples)
+	# Mix full and shorthand forms
+	# Change separator once (useful for the case containing colons)
+	#> gdocker dev dockerfile --name foo --tag bar \
+	#>   --inst from:ubuntu
+	#>   --inst switchonce:# \
+	#>   --inst run:#download,https://example.com/foo.exe
+	#>   --inst vol:/foo:/bar`,
+		Before: setSubCommandHelpTemplate(TMPL_SUBCOMMAND_HELP),
+		Flags: []cli.Flag{
+			FLAG_DF_INST,
+			FLAG_DIRECTORY,
+			FLAG_ARCH,
+			FLAG_NAME,
+			FLAG_BUILD_TAG,
+			FLAG_CONFIG_DEFAULT,
+			FLAG_VERBOSE,
+			FLAG_DRYRUN,
+		},
+		DisableSliceFlagSeparator: true,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			logger := getLogger("dev dockerfile", getLogLevel(cmd.Int64("verbose")))
+			slog.SetDefault(logger)
+
+			config, _ := loadConfig(cmd)
+			dir := config.Dir
+			arch := config.DefaultArch
+			name := cmd.String("name")
+			tag := cmd.String("tag")
+
+			df := NewDockerfile(true)
+
+			for _, v := range cmd.StringSlice("inst") {
+				inst_type, rest, ok := strings.Cut(v, ":")
+				if !ok {
+					slog.Error(fmt.Sprintf("no instruction type found, '%s'", v))
+					os.Exit(1)
+				}
+
+				// switch is not an instruction.
+				// it can be used to change the global separater to parse instruction correctlly.
+				// (e.g. to parse URL like https://example.com)
+				switch inst_type {
+				case "switch":
+					if rest == "" {
+						ARG_SEPARATER = ":"
+					} else {
+						ARG_SEPARATER = rest
+					}
+					continue
+				case "switchonce":
+					ONCE = true
+					OLD_ARG_SEPARATER = ARG_SEPARATER
+					if rest == "" {
+						ARG_SEPARATER = ":"
+					} else {
+						ARG_SEPARATER = rest
+					}
+					continue
+				}
+
+				// assign instruction
+				var inst InstructionBuilder
+				short := false
+				switch inst_type {
+				// use full parser
+				case "FROM":
+					inst = &FROM_INST{}
+				case "RUN":
+					inst = &RUN_INST{}
+				case "ENTRYPOINT":
+					inst = &ENTRYPOINT_INST{}
+				case "COPY":
+					inst = &COPY_INST{}
+				case "WORKDIR":
+					inst = &WORKDIR_INST{}
+				case "ENV":
+					inst = &ENV_INST{}
+				case "VOLUME":
+					inst = &VOLUMNE_INST{}
+				case "LABEL":
+					inst = &LABEL_INST{}
+				// use short-hand parser
+				case "lab":
+					inst = &LABEL_INST{}
+					short = true
+				case "from":
+					inst = &FROM_INST{}
+					short = true
+				case "run":
+					inst = &RUN_INST{}
+					short = true
+				case "ep":
+					inst = &ENTRYPOINT_INST{}
+					short = true
+				case "cp":
+					inst = &COPY_INST{}
+					short = true
+				case "wd":
+					inst = &WORKDIR_INST{}
+					short = true
+				case "env":
+					inst = &ENV_INST{}
+					short = true
+				case "vol":
+					inst = &VOLUMNE_INST{}
+					short = true
+				case "cm":
+					inst = &COMMENT{}
+				case "bl":
+					inst = &BLANK{}
+				case "apt":
+					inst = &APT_INSTALL{}
+				// undefined instruction
+				default:
+					slog.Error(fmt.Sprintf("invalid type '%s'", inst_type))
+					os.Exit(1)
+				}
+
+				// parse instruction
+				if short {
+					inst.ParseShort(rest)
+				} else {
+					inst.Parse(rest)
+				}
+				if ONCE {
+					ARG_SEPARATER = OLD_ARG_SEPARATER
+					ONCE = false
+				}
+
+				// add instruction to the last stage
+				df.AddInstruction(inst)
+			}
+
+			outf := filepath.Join(dir, arch, name, tag, "Dockerfile")
+			outf = anonymizeWd(outf, config.ShowAbspath)
+			df.WriteTo(outf, cmd.Bool("dry-run"))
 
 			return nil
 		},
