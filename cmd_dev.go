@@ -56,7 +56,7 @@ func ubuntuDockerfile(platform, tag, tz string) *Dockerfile {
 	d.LastStage().AddInstruction(&COPY_INST{
 		"shell",
 		[]string{"--chmod=777"},
-		[]string{"entry_point.sh"},
+		[]string{"entrypoint.sh"},
 		"/usr/local/bin/entrypoint.sh",
 	})
 	d.LastStage().AddInstruction(&COPY_INST{
