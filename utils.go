@@ -116,8 +116,9 @@ func checkImageNamesInput(cmd *cli.Command, ibds ImageBuildDirs) []string {
 	return inputs
 }
 
-func execCommand(cmd string, args []string) {
+func execCommand(dir, cmd string, args []string) {
 	subcmd := exec.Command(cmd, args...)
+	subcmd.Dir = dir
 	subcmd.Stdout = os.Stdout
 	subcmd.Stderr = os.Stderr
 	err := subcmd.Run()

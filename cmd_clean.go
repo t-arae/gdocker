@@ -85,7 +85,7 @@ func cmdClean() *cli.Command {
 					args = append(args, flags...)
 					fmt.Println("make", strings.Join(args, " "))
 					if !cmd.Bool("dry-run") {
-						execCommand("make", args)
+						execCommand(getWd(), "make", args)
 					}
 					finished[image.String()] = struct{}{}
 				}

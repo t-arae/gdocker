@@ -91,18 +91,22 @@ func cmdBuild() *cli.Command {
 					args = beforeV0_0_6(image, ibd, config, cmd)
 				} else {
 					args, args2 = ibd.BuildMakeInstruction(image.Tag, config.ShowAbspath)
-					args2 = append([]string{"build", cmd.String("build-flag")}, args2...)
+					if cmd.IsSet("build-flag") {
+						args2 = append([]string{"build", cmd.String("build-flag")}, args2...)
+					} else {
+						args2 = append([]string{"build"}, args2...)
+					}
 				}
 
 				fmt.Println("make", strings.Join(args, " "))
 				if !cmd.Bool("dry-run") {
-					execCommand("make", args)
+					execCommand(getWd(), "make", args)
 				}
 
 				if version_ok && image.Tag != "latest" {
 					fmt.Println(config.DockerBin, strings.Join(args2, " "))
 					if !cmd.Bool("dry-run") {
-						execCommand(config.DockerBin, args2)
+						execCommand(getWd(), config.DockerBin, args2)
 					}
 				}
 			}
@@ -119,9 +123,14 @@ func beforeV0_0_6(image DockerImage, ibd ImageBuildDir, config Config, cmd *cli.
 		args = append(args, fmt.Sprintf("DOCKER_BIN=%s", config.DockerBin))
 	}
 	// add flags for make command
-	args = append(args, cmd.StringSlice("flag")...)
+	if cmd.IsSet("flag") {
+		args = append(args, cmd.StringSlice("flag")...)
+	}
 	// add flags for docker build command
 	// to distiguish <v0.0.6, and >=v0.0.6, labels will be added automatically
-	args = append(args, fmt.Sprintf("DOCKER_BUILD_FLAG=%s %s", "--label com.gdocker.version= --label com.gdocker.build-dir=", cmd.String("build-flag")))
+	args = append(args, fmt.Sprintf("DOCKER_BUILD_FLAG=%s", "--label com.gdocker.version= --label com.gdocker.build-dir="))
+	if cmd.IsSet("build-flag") {
+		args = append(args, fmt.Sprintf("DOCKER_BUILD_FLAG=%s %s", "--label com.gdocker.version= --label com.gdocker.build-dir=", cmd.String("build-flag")))
+	}
 	return args
 }

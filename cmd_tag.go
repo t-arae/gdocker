@@ -95,7 +95,7 @@ func cmdTag() *cli.Command {
 						args := ibds.ibds[idx].BuildRemoveImage(projtag)
 						fmt.Println(docker_bin, strings.Join(args, " "))
 						if !cmd.Bool("dry-run") {
-							execCommand(docker_bin, args)
+							execCommand(getWd(), docker_bin, args)
 						}
 					} else {
 						args, use := ibds.ibds[idx].BuildTaggingInstruction(image.Tag, projtag)
@@ -105,7 +105,7 @@ func cmdTag() *cli.Command {
 
 						fmt.Println(docker_bin, strings.Join(args, " "))
 						if !cmd.Bool("dry-run") {
-							execCommand(docker_bin, args)
+							execCommand(getWd(), docker_bin, args)
 						}
 					}
 					finished[image.String()] = struct{}{}

@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
-	"fmt"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -73,38 +74,26 @@ func cmdImages() *cli.Command {
 			ibds := searchImageBuildDir(dir, "archive")
 			ibds.makeMap()
 
-			eimgs := getExistImages(docker_bin)
-			imgs := eimgs.Images()
-			for _, iname := range ibds.ImageNames() {
-				if !eimgs.checkExistByNames(iname) {
-					img, err := NewDockerImage(iname)
-					if err != nil {
-						slog.Error(err.Error())
-						os.Exit(1)
-					}
-					imgs = append(imgs, img)
-				}
-			}
+			iis := getImageInfo(docker_bin)
+			m := getMapExistImageNames(iis)
 
 			var records [][]string
-			for _, img := range imgs {
-				idx, exists := ibds.mapNameTag[img.String()]
-				var dir string
-				if exists {
-					if img.Tag == "latest" {
-						dir = filepath.Join(ibds.ibds[idx].dirParent, img.Name)
-					} else {
-						dir = filepath.Join(ibds.ibds[idx].dirParent, img.Name, img.Tag)
+			for _, ii := range iis {
+				record := ii.ToRecord()
+				if _, ok := ibds.mapNameTag[record[0][0]]; !ok {
+					for i := range record {
+						record[i][2] = "false"
 					}
-				} else {
-					dir = ""
 				}
-				records = append(records, []string{
-					img.String(),
-					fmt.Sprintf("%t", eimgs.checkExist(img)),
-					fmt.Sprintf("%t", exists),
-					anonymizeWd(filepath.Join(dir), config.ShowAbspath),
-				})
+				records = append(records, record...)
+			}
+
+			for _, iname := range ibds.ImageNames() {
+				if i, ok := m[iname]; ok {
+					records[i][1] = "true"
+				} else {
+					records = append(records, []string{iname, "false", "true", "", ""})
+				}
 			}
 
 			if cmd.Bool("built-only") {
@@ -127,8 +116,16 @@ func cmdImages() *cli.Command {
 				records = filtered
 			}
 
+			if !config.ShowAbspath {
+				for i := range records {
+					if records[i][4] != "" {
+						records[i][4] = anonymizeWd(records[i][4], false)
+					}
+				}
+			}
+
 			writeCSV(
-				[]string{"ImageName", "Built", "Exist", "BuildDir"},
+				[]string{"ImageName", "Built", "Exist", "Version", "BuildDir"},
 				records,
 				os.Stdout,
 			)
@@ -136,6 +133,80 @@ func cmdImages() *cli.Command {
 			return nil
 		},
 	}
+}
+
+type ImageInfo struct {
+	Hash   string            `json:"hash"`
+	Names  []string          `json:"name"`
+	Labels map[string]string `json:"label"`
+}
+
+func (ii *ImageInfo) ToRecord() [][]string {
+	var records [][]string
+	for _, in := range ii.Names {
+		record := []string{in, "true", "true", ii.gdockerVersion(), ii.buildDir()}
+		records = append(records, record)
+	}
+	return records
+}
+
+func (ii *ImageInfo) gdockerVersion() string {
+	if v, ok := ii.Labels["com.gdocker.version"]; ok {
+		return v
+	}
+	return ""
+}
+
+func (ii *ImageInfo) buildDir() string {
+	if v, ok := ii.Labels["com.gdocker.build-dir"]; ok {
+		return v
+	}
+	return ""
+}
+
+func getMapExistImageNames(iis []ImageInfo) map[string]int {
+	m := make(map[string]int)
+	for _, ii := range iis {
+		for i, iname := range ii.Names {
+			m[iname] = i
+		}
+	}
+	return m
+}
+
+func getImageInfo(docker_path string) []ImageInfo {
+	out, err := exec.Command(docker_path, "images", "--filter", "dangling=false", "--format", "{{.ID}}").Output()
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+
+	images := strings.Split(string(out), "\n")
+	slices.Sort(images)
+	images = slices.DeleteFunc(images, func(e string) bool {
+		return e == ""
+	})
+	images = slices.Compact(images)
+	out, err = exec.Command(docker_path, append([]string{"image", "inspect", "--format", "{ \"hash\" : {{json .Id}},  \"name\" : {{json .RepoTags}}, \"label\" : {{json .Config.Labels}} }"}, images...)...).Output()
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+
+	lines := slices.DeleteFunc(bytes.Split(out, []byte("\n")), func(b []byte) bool {
+		return len(b) == 0
+	})
+	recs := make([]ImageInfo, len(lines))
+	for i, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		err = json.Unmarshal(line, &recs[i])
+		if err != nil {
+			slog.Error(err.Error())
+		}
+	}
+	return recs
 }
 
 type ExistImages map[string]struct{}
