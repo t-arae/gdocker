@@ -19,7 +19,7 @@ system:
 To install `gdocker`, run the following command in terminal:
 
 ``` bash
-go install -trimpath -ldflags='-s -w' github.com/t-arae/gdocker@latest
+GOPROXY=direct go install -trimpath -ldflags='-s -w' github.com/t-arae/gdocker@latest
 ```
 
 If the `$GOPATH/bin` is not in the `$PATH`, add it.
@@ -45,7 +45,7 @@ gdocker --help
        gdocker [global options] [command [command options]]
 
     VERSION:
-       0.0.6 (Docker version 28.3.2, build 578ccf6)
+       0.0.7 (Docker version 28.3.2, build 578ccf6)
 
     COMMANDS:
        showdeps  show docker image dependencies as mermaid flowchart
