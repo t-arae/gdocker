@@ -66,7 +66,7 @@ func cmdRun() *cli.Command {
 
 			if slices.Index(cmdargs, "-it") == -1 {
 				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
-				execCommand(docker_path, cmdargs)
+				execCommand(getWd(), docker_path, cmdargs)
 			} else {
 				subcmd := exec.Command(docker_path, cmdargs...)
 				err := startPty(subcmd)
@@ -108,7 +108,7 @@ func cmdRunWorkingDirectory() *cli.Command {
 
 			if slices.Index(cmdargs, "-it") == -1 {
 				slog.Info(fmt.Sprintf("command is '%s %s'", docker_path, strings.Join(cmdargs, " ")))
-				execCommand(docker_path, cmdargs)
+				execCommand(getWd(), docker_path, cmdargs)
 			} else {
 				subcmd := exec.Command(docker_path, cmdargs...)
 				err := startPty(subcmd)
